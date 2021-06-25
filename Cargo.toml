@@ -1,0 +1,19 @@
+[package]
+authors = ["Joe Batt <Joe@SolidDesign.net>"]
+edition = "2018"
+name = "j1939scanner"
+version = "0.1.0"
+
+[dependencies]
+csv = "1.1"
+serde = { version = "1", features = ["derive"] }
+calamine = "0.18.0"
+
+[dependencies.gtk]
+version = "0.9.0"
+features = ["v3_16"]
+
+[dependencies.gio]
+version = ""
+features = ["v2_44"]
+
