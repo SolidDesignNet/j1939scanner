@@ -1,10 +1,10 @@
 extern crate gio;
 extern crate gtk;
 
+use anyhow::*;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
-use std::error::Error;
 
 mod j1939data;
 
@@ -19,8 +19,8 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
     number_col
 }
 
-pub fn main() {
-    j1939data::load_j1939da("da.xlsx".to_string());
+pub fn main() -> Result<()> {
+    let table = j1939data::load_j1939da("da.xlsx".to_string())?;
 
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())
@@ -38,13 +38,13 @@ pub fn main() {
             String::static_type(),
             String::static_type(),
         ]);
-        // for (_spn, row) in &table {
-        //     list.insert_with_values(
-        //         None,
-        //         &[0, 1, 2, 3, 4],
-        //         &[&row.pgn_label(), &row.spn_label(), &row.name, &"", &""],
-        //     );
-        // }
+        for (_spn, row) in &table {
+            list.insert_with_values(
+                None,
+                &[0, 1, 2, 3, 4],
+                &[&row.pg_label, &row.sp_label, &row.unit, &"", &""],
+            );
+        }
 
         let view = TreeView::with_model(&list);
 
@@ -54,12 +54,13 @@ pub fn main() {
         view.append_column(&config_col(&"Value", 3));
         view.append_column(&config_col(&"Unit", 4));
 
-        // let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-        // sw.add(&view);
-        window.add(&view);
+        let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+        sw.add(&view);
+        window.add(&sw);
 
         window.show_all();
     });
 
     application.run(&[]);
+    Ok(())
 }
