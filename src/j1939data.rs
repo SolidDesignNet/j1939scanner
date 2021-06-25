@@ -70,39 +70,22 @@ pub struct J1939DARow {
     // #[serde(rename = "PG Created or Modified Date")]
     // #[serde(rename = "SP to PG Mapping Created or Modified Date")]
 }
-impl J1939DARow {
-    // pub fn pgn_label(&self) -> Option<String> {
-    //     self.pgn.map(|p| format!("{} ({:X})", p, p))
-    // }
-    // pub fn spn_label(&self) -> Option<String> {
-    //     self.spn.map(|p| format!("{} ({:X})", p, p))
-    // }
-}
+impl J1939DARow {}
 pub fn load_j1939da(file: String) -> anyhow::Result<HashMap<u16, J1939DARow>> {
     let mut excel: Xlsx<_> = open_workbook(file)?;
-
     let range = excel
         .worksheet_range("SPs & PGs")
         .ok_or(Error::Msg("Cannot find 'SPs & PGs'"))??;
-
-    let r = range.range((3, 0), range.end().unwrap());
+    // skip the first 3 rows
+    let subrange = range.range((3, 0), range.end().unwrap());
     let iter = RangeDeserializerBuilder::new()
         .has_headers(true)
-        .from_range(&r)?;
+        .from_range(&subrange)?;
     let mut map = HashMap::new();
-    let mut count = 0;
     for result in iter {
         // ignore missing spns
         if result.is_ok() {
             let data: J1939DARow = result?;
-            println!(
-                "{0} {1}({1:04X}) {2} {3:?}",
-                count,
-                data.pg.unwrap_or(0),
-                data.spn.unwrap_or(0),
-                data.sp_label
-            );
-            count += 1;
             if let Some(spn) = data.spn {
                 map.insert(spn, data);
             }
