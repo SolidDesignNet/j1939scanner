@@ -2,6 +2,17 @@ use anyhow::*;
 use std::option::*;
 use std::sync::*;
 
+
+mod j1939data;
+mod multiqueue;
+mod packet;
+mod rp1210;
+
+use j1939data::*;
+use multiqueue::*;
+use packet::*;
+use rp1210::*;
+
 #[derive(Clone, Debug)]
 pub struct MultiQueue<T> {
     data: Arc<RwLock<Vec<T>>>,

@@ -10,7 +10,10 @@ mod multiqueue;
 mod packet;
 mod rp1210;
 
-//impl TreeModelExt for SignalModel {}
+use j1939data::*;
+use multiqueue::*;
+use packet::*;
+use rp1210::*;
 
 fn config_col(name: &str, id: i32) -> TreeViewColumn {
     let number_col = TreeViewColumnBuilder::new().title(name).build();
@@ -22,10 +25,10 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
 }
 
 pub fn main() -> Result<()> {
-    let queue: MultiQueue<Packet> = MultiQueue {};
-    let rp1210 = Rp1210::new("NUL2NXR32", "J1939", queue.clone());
+    let queue: multiqueue::MultiQueue<packet::Packet> = multiqueue::MultiQueue::new();
+    let rp1210 = Rp1210::new("NUL2NXR32", queue.clone());
 
-    let table = j1939data::load_j1939da("da.xlsx".to_string())?;
+    let table = load_j1939da("da.xlsx".to_string())?;
 
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())

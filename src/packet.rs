@@ -1,3 +1,4 @@
 pub struct Packet {
-    data:[u8]
+    head: [u8; 8],
+    data: [u8; 8],
 }
