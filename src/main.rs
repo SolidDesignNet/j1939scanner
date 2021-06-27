@@ -2,11 +2,13 @@ extern crate gio;
 extern crate gtk;
 
 use anyhow::*;
-use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
 
 mod j1939data;
+mod multiqueue;
+mod packet;
+mod rp1210;
 
 //impl TreeModelExt for SignalModel {}
 
@@ -20,6 +22,9 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
 }
 
 pub fn main() -> Result<()> {
+    let queue: MultiQueue<Packet> = MultiQueue {};
+    let rp1210 = Rp1210::new("NUL2NXR32", "J1939", queue.clone());
+
     let table = j1939data::load_j1939da("da.xlsx".to_string())?;
 
     let application =
