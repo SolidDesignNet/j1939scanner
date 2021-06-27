@@ -20,9 +20,9 @@ Added PATH="/c/Users/${USER}/.cargo/bin:${PATH}" to C:\MSYS32\home\USER\.bash_pr
 In MSYS2 MSYS 32 bit console
 ```
 pacman -S git
-pacman -S mingw-w64-i686-gtk3
-pacman -S mingw-w64-i686-toolchain
-default parameters
+pacman -S mingw-i686-gtk3  // double check "i686" for 32 bit
+pacman -S mingw-i686-toolchain
+default parameters  // WHAT IS THIS?!
 ```
 In MSYS2 MinGW 32-bit console
 #check that gtk installed property
