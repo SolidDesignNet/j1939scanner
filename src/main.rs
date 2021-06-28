@@ -5,14 +5,13 @@ use anyhow::*;
 use gtk::prelude::*;
 use gtk::*;
 
-mod j1939data;
+mod j1939;
 mod multiqueue;
-mod packet;
 mod rp1210;
 
-use j1939data::*;
+use j1939::packet::*;
+use j1939::*;
 use multiqueue::*;
-use packet::*;
 use rp1210::*;
 
 fn config_col(name: &str, id: i32) -> TreeViewColumn {
@@ -25,8 +24,8 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
 }
 
 pub fn main() -> Result<()> {
-    let queue: multiqueue::MultiQueue<packet::Packet> = multiqueue::MultiQueue::new();
-    let rp1210 = Rp1210::new("NUL2NXR32", queue.clone());
+    let queue: MultiQueue<Packet> = MultiQueue::new();
+    let rp1210 = Rp1210::new("NUL2NXR32".to_string(), queue);
 
     let table = load_j1939da("da.xlsx".to_string())?;
 

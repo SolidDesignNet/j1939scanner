@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use calamine::*;
 use serde::Deserialize;
 
+pub mod packet;
+
 #[derive(Debug, Deserialize)]
 pub struct J1939DARow {
     // #[serde(rename = "Revised")]

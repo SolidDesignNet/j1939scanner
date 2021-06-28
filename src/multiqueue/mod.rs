@@ -2,18 +2,7 @@ use anyhow::*;
 use std::option::*;
 use std::sync::*;
 
-
-mod j1939data;
-mod multiqueue;
-mod packet;
-mod rp1210;
-
-use j1939data::*;
-use multiqueue::*;
-use packet::*;
-use rp1210::*;
-
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MultiQueue<T> {
     data: Arc<RwLock<Vec<T>>>,
     start: u64,
@@ -21,7 +10,6 @@ pub struct MultiQueue<T> {
 }
 pub struct MQIterator<T> {
     queue: MultiQueue<T>,
-    untilFn: &'static dyn Fn(T) -> bool,
 }
 impl<T> Iterator for MQIterator<T> {
     type Item = T;
@@ -30,7 +18,6 @@ impl<T> Iterator for MQIterator<T> {
         Option::None
     }
 }
-
 impl<T> MultiQueue<T> {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
@@ -50,10 +37,7 @@ impl<T> MultiQueue<T> {
         Ok(())
     }
     pub fn pull(&self, untilFn: &'static dyn Fn(T) -> bool) -> MQIterator<T> {
-        MQIterator {
-            queue: *self,
-            untilFn,
-        }
+        MQIterator { queue: *self }
     }
 }
 
