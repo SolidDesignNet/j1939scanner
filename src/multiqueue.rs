@@ -21,8 +21,7 @@ pub struct MQIterator<T> {
 impl<T> Iterator for MQIterator<T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        // FIXME
-        Option::None
+        todo!()
     }
 }
 impl<T> Clone for MultiQueue<T> {
@@ -46,7 +45,6 @@ impl<T> MultiQueue<T> {
             if let Ok(t) = self.data.read() {
                 if index < t.end {
                     let i = index - self.start;
-                    // FIXME there should be a more efficient way to do this.
                     return t.vec.get((i % self.size) as usize);
                 }
             }
@@ -64,8 +62,9 @@ impl<T> MultiQueue<T> {
             Err(e) => Err(anyhow!("")),
         }
     }
-    pub fn pull(&self, untilFn: &'static dyn Fn(T) -> bool) -> MQIterator<T> {
-        MQIterator { queue: *self }
+    pub fn pull_until(&self, untilFn: &'static dyn Fn(T) -> bool) -> MQIterator<T> {
+        //MQIterator { queue: *self }
+        todo!()
     }
 }
 
@@ -77,7 +76,7 @@ mod tests {
     fn simple() {
         let q: MultiQueue<&str> = MultiQueue::new(10);
         q.push("one");
-        let i = q.pull(&|i| i == "two");
+        let mut i = q.pull_until(&|i| i == "two");
         q.push("two");
         q.push("three");
         assert_eq!("two", i.next().unwrap());

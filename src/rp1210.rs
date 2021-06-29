@@ -19,8 +19,11 @@ impl Rp1210 {
     // load DLL, make connection and background thread to read all packets into queue
     // FIXME, return a handle to close
     pub fn run(&self, dev: u16, connection: String, queue: MultiQueue<Packet>) -> Result<()> {
-        self.RP1210_ClientConnect(dev, "J1939:Baud=Auto".to_string());
-        std::thread::spawn(|| {});
+        self.RP1210_ClientConnect(dev, connection);
+        std::thread::spawn(|| {
+            todo!()
+            // copy packets from connection to queue until close
+        });
         Ok(())
     }
     pub fn RP1210_ClientConnect(&self, nDeviceID: u16, fpchProtocol: String) -> u16 {
@@ -34,5 +37,7 @@ impl Rp1210 {
         self.lib.close(); // FIXME
         Ok(())
     }
-    pub fn send(&self, packet: &Packet) {}
+    pub fn send(&self, packet: &Packet) {
+        todo!()
+    }
 }
