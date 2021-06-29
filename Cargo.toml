@@ -12,10 +12,9 @@ anyhow = ""
 libloading = ""
 
 [dependencies.gtk]
-version = ""
+version = "0.9.0"
 features = ["v3_16"]
 
 [dependencies.gio]
 version = ""
 features = ["v2_44"]
-
