@@ -40,6 +40,7 @@ impl<T> MultiQueue<T> {
             size: capacity as u64,
         }
     }
+    // index wraps to simplify iterator implementation
     fn get(&self, index: u64) -> Option<&T> {
         if index >= self.start {
             if let Ok(t) = self.data.read() {
