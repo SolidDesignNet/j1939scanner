@@ -4,25 +4,30 @@ use libloading::*;
 use crate::j1939::packet::*;
 use crate::multiqueue::*;
 
-pub struct Rp1210 {
+pub struct Rp1210<'a> {
     lib: Library,
-    bus: MultiQueue<Packet>,
+    bus: &'a MultiQueue<Packet>,
+    running: bool,
 }
-impl Rp1210 {
+impl<'a> Rp1210<'a> {
     //NULN2R32
-    pub fn new(id: String, the_bus: MultiQueue<Packet>) -> anyhow::Result<Rp1210> {
+    pub fn new(id: String, the_bus: &'a Bus<Packet>) -> anyhow::Result<Rp1210> {
         Ok(Rp1210 {
+            running: false,
             lib: unsafe { Library::new(format!("C:/windows/{}.dll", id))? },
             bus: the_bus,
         })
     }
     // load DLL, make connection and background thread to read all packets into queue
     // FIXME, return a handle to close
-    pub fn run(&self, dev: u16, connection: String, queue: MultiQueue<Packet>) -> Result<()> {
+    pub fn run(&self, dev: u16, connection: String, queue: &'a Bus<Packet>) -> Result<()> {
         self.RP1210_ClientConnect(dev, connection);
         std::thread::spawn(|| {
-            todo!()
-            // copy packets from connection to queue until close
+            self.running = true;
+            while self.running {
+                let p = Packet::new();
+                self.bus.broadcast(p);
+            }
         });
         Ok(())
     }

@@ -2,70 +2,50 @@ use anyhow::*;
 use std::option::*;
 use std::sync::*;
 
-#[derive(Debug)]
-struct MQData<T> {
-    end: u64,
-    vec: Vec<T>,
+struct MQItem<T> {
+    data: T,
+    next: Arc<Option<Box<MQItem<T>>>>,
 }
-
-#[derive(Debug)]
-pub struct MultiQueue<T> {
-    // count of items.  Not wrapped to vec.
-    data: Arc<RwLock<MQData<T>>>,
-    start: u64,
-    size: u64,
-}
-pub struct MQIterator<T> {
-    queue: MultiQueue<T>,
-}
-impl<T> Iterator for MQIterator<T> {
+impl<T> Iterator for MultiQueue<T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         todo!()
     }
 }
-impl<T> Clone for MultiQueue<T> {
-    fn clone(&self) -> Self {
-        todo!()
+pub struct MultiQueue<T> {
+    head: Arc<Option<Box<MQItem<T>>>>,
+}
+impl<T> MQItem<T> {
+    fn push(&self, item: T) {
+        if let Some(h) = self.next {
+            h.next.push(item)
+        } else {
+            self.data = item;
+        }
     }
 }
 impl<T> MultiQueue<T> {
-    pub fn new(capacity: usize) -> MultiQueue<T> {
+    pub fn new() -> MultiQueue<T> {
         MultiQueue {
-            data: Arc::new(RwLock::new(MQData {
-                end: 0,
-                vec: Vec::with_capacity(capacity),
-            })),
-            start: 0,
-            size: capacity as u64,
+            head: Arc::new(None),
         }
     }
-    // index wraps to simplify iterator implementation
-    fn get(&self, index: u64) -> Option<&T> {
-        if index >= self.start {
-            if let Ok(t) = self.data.read() {
-                if index < t.end {
-                    let i = index - self.start;
-                    return t.vec.get((i % self.size) as usize);
-                }
+    pub fn pull(&self) -> Option<T> {
+        let h = self.head.as_ref();
+        match h {
+            None => None,
+            Some(i) => {
+                self.head = i.next;
+                Some(i.data)
             }
         }
-        Option::None
     }
     pub fn push(&self, item: T) -> anyhow::Result<()> {
-        let lock = self.data.write();
-        match lock {
-            Ok(mut t) => {
-                t.vec.push(item);
-                t.end += 1;
-                Ok(())
-            }
-            Err(e) => Err(anyhow!("")),
+        if let Some(h) = self.head.unwrap() {
+            h.push(item)
+        } else {
         }
-    }
-    pub fn pull_until(&self, untilFn: &'static dyn Fn(T) -> bool) -> MQIterator<T> {
-        //MQIterator { queue: *self }
-        todo!()
+        Ok(())
     }
 }
 

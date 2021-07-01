@@ -12,7 +12,6 @@ mod j1939;
 mod multiqueue;
 mod rp1210;
 
-use j1939::packet::Packet;
 use j1939::*;
 use multiqueue::*;
 use rp1210::*;
@@ -28,8 +27,8 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
 
 pub fn main() -> Result<()> {
     // 10 s buffer of 2,000 packets/s
-    let queue: MultiQueue<Packet> = MultiQueue::new(2000 * 10);
-    let rp1210 = Rp1210::new("NUL2NXR32".to_string(), queue);
+    let bus = MultiQueue::new(20000);
+    let rp1210 = Rp1210::new("NUL2NXR32".to_string(), &bus);
 
     let table = load_j1939da("da.xlsx".to_string())?;
 
