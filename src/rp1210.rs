@@ -6,12 +6,12 @@ use crate::multiqueue::*;
 
 pub struct Rp1210<'a> {
     lib: Library,
-    bus: &'a MultiQueue<Packet>,
+    bus: &'a mut MultiQueue<Packet>,
     running: bool,
 }
 impl<'a> Rp1210<'a> {
     //NULN2R32
-    pub fn new(id: String, the_bus: &'a Bus<Packet>) -> anyhow::Result<Rp1210> {
+    pub fn new(id: String, the_bus: &'a mut MultiQueue<Packet>) -> anyhow::Result<Rp1210> {
         Ok(Rp1210 {
             running: false,
             lib: unsafe { Library::new(format!("C:/windows/{}.dll", id))? },
@@ -20,13 +20,13 @@ impl<'a> Rp1210<'a> {
     }
     // load DLL, make connection and background thread to read all packets into queue
     // FIXME, return a handle to close
-    pub fn run(&self, dev: u16, connection: String, queue: &'a Bus<Packet>) -> Result<()> {
+    pub fn run(&'static mut self, dev: u16, connection: String) -> Result<()> {
         self.RP1210_ClientConnect(dev, connection);
-        std::thread::spawn(|| {
+        std::thread::spawn(move || {
             self.running = true;
             while self.running {
                 let p = Packet::new();
-                self.bus.broadcast(p);
+                self.bus.push(p);
             }
         });
         Ok(())

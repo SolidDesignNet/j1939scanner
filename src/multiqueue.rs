@@ -1,51 +1,59 @@
-use anyhow::*;
 use std::option::*;
 use std::sync::*;
 
 struct MQItem<T> {
     data: T,
-    next: Arc<Option<Box<MQItem<T>>>>,
+    next: Arc<RwLock<Option<MQItem<T>>>>,
 }
-impl<T> Iterator for MultiQueue<T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-    }
-}
+
 pub struct MultiQueue<T> {
-    head: Arc<Option<Box<MQItem<T>>>>,
+    head: Arc<RwLock<Option<MQItem<T>>>>,
+}
+impl<T> MQItem<T> {
+    fn new(data: T) -> MQItem<T> {
+        MQItem {
+            data,
+            next: Arc::new(RwLock::new(None)),
+        }
+    }
+    fn next(&self) -> Arc<RwLock<Option<MQItem<T>>>> {
+        self.next.clone()
+    }
 }
 impl<T> MQItem<T> {
     fn push(&self, item: T) {
-        if let Some(h) = self.next {
-            h.next.push(item)
+        let mut n = self.next.write().unwrap();
+        if n.is_some() {
+            n.as_ref().unwrap().push(item)
         } else {
-            self.data = item;
+            *n = Some(MQItem::new(item));
         }
     }
 }
-impl<T> MultiQueue<T> {
+impl<T> MultiQueue<T>
+where
+    T: Copy,
+{
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
-            head: Arc::new(None),
+            head: Arc::new(RwLock::new(None)),
         }
     }
-    pub fn pull(&self) -> Option<T> {
-        let h = self.head.as_ref();
-        match h {
-            None => None,
-            Some(i) => {
-                self.head = i.next;
-                Some(i.data)
-            }
-        }
+    pub fn pull(&mut self) -> Option<T> {
+        let old_option = self.head.read().unwrap();
+        let rtn = old_option.as_ref().map(|i| i.data.clone());
+        if old_option.is_some() {
+            self.head = old_option.as_ref().map(|i| i.next.clone()).unwrap();
+        };
+        rtn
     }
-    pub fn push(&self, item: T) -> anyhow::Result<()> {
-        if let Some(h) = self.head.unwrap() {
-            h.push(item)
+    pub fn push(&mut self, item: T) {
+        let mut opt = self.head.write().unwrap();
+        if opt.is_some() {
+            opt.as_ref().unwrap().push(item)
         } else {
+            *opt = Some(MQItem::new(item));
         }
-        Ok(())
     }
 }
 
@@ -55,12 +63,12 @@ mod tests {
 
     #[test]
     fn simple() {
-        let q: MultiQueue<&str> = MultiQueue::new(10);
+        let mut q: MultiQueue<&str> = MultiQueue::new();
         q.push("one");
-        let mut i = q.pull_until(&|i| i == "two");
+        // let mut q = q.clone();
         q.push("two");
         q.push("three");
-        assert_eq!("two", i.next().unwrap());
-        assert_eq!(std::option::Option::None, i.next());
+        assert_eq!("two", q.pull().unwrap());
+        assert_eq!(std::option::Option::None, q.pull());
     }
 }
