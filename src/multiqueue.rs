@@ -40,12 +40,17 @@ where
         }
     }
     pub fn pull(&mut self) -> Option<T> {
-        let old_option = self.head.read().unwrap();
-        let rtn = old_option.as_ref().map(|i| i.data.clone());
-        if old_option.is_some() {
-            self.head = old_option.as_ref().map(|i| i.next.clone()).unwrap();
+        let o = {
+            let old_option = self.head.read().unwrap();
+            old_option
+                .as_ref()
+                .map(|i| Some((i.next.clone(), i.data)))
+                .unwrap()
         };
-        rtn
+        o.map(|i| {
+            self.head = i.0;
+            i.1
+        })
     }
     pub fn push(&mut self, item: T) {
         let mut opt = self.head.write().unwrap();
