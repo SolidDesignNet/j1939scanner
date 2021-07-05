@@ -40,13 +40,12 @@ where
         }
     }
     pub fn pull(&mut self) -> Option<T> {
-        let o = {
-            let old_option = self.head.read().unwrap();
-            old_option
-                .as_ref()
-                .map(|i| Some((i.next.clone(), i.data)))
-                .unwrap()
-        };
+        let o = self
+            .head
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|i| (i.next.clone(), i.data));
         o.map(|i| {
             self.head = i.0;
             i.1
@@ -58,6 +57,11 @@ where
             opt.as_ref().unwrap().push(item)
         } else {
             *opt = Some(MQItem::new(item));
+        }
+    }
+    pub fn clone(&self) -> Self {
+        MultiQueue {
+            head: self.head.clone(),
         }
     }
 }
