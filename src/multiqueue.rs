@@ -1,11 +1,13 @@
+use std::fmt::Debug;
 use std::option::*;
 use std::sync::*;
+use std::thread::JoinHandle;
 
 struct MQItem<T> {
     data: T,
     next: Arc<RwLock<Option<MQItem<T>>>>,
 }
-
+#[derive(Clone)]
 pub struct MultiQueue<T> {
     head: Arc<RwLock<Option<MQItem<T>>>>,
 }
@@ -16,23 +18,26 @@ impl<T> MQItem<T> {
             next: Arc::new(RwLock::new(None)),
         }
     }
-    fn next(&self) -> Arc<RwLock<Option<MQItem<T>>>> {
-        self.next.clone()
-    }
 }
 impl<T> MQItem<T> {
     fn push(&self, item: T) {
-        let mut n = self.next.write().unwrap();
-        if n.is_some() {
-            n.as_ref().unwrap().push(item)
-        } else {
-            *n = Some(MQItem::new(item));
-        }
+        push_helper(&self.next, item);
     }
 }
+
+// MultiQueue.push and MQItem.push are the same
+fn push_helper<T>(this: &Arc<RwLock<Option<MQItem<T>>>>, item: T) {
+    let mut n = this.write().unwrap();
+    if n.is_some() {
+        n.as_ref().unwrap().push(item)
+    } else {
+        *n = Some(MQItem::new(item));
+    }
+}
+
 impl<T> MultiQueue<T>
 where
-    T: Copy,
+    T: Copy + Debug + Sync + Send + 'static,
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
@@ -52,17 +57,17 @@ where
         })
     }
     pub fn push(&mut self, item: T) {
-        let mut opt = self.head.write().unwrap();
-        if opt.is_some() {
-            opt.as_ref().unwrap().push(item)
-        } else {
-            *opt = Some(MQItem::new(item));
-        }
+        push_helper(&self.head, item);
     }
     pub fn clone(&self) -> Self {
         MultiQueue {
             head: self.head.clone(),
         }
+    }
+    pub fn log(mut self) -> JoinHandle<()> {
+        std::thread::spawn(move || loop {
+            println!("{:?}", self.pull())
+        })
     }
 }
 
