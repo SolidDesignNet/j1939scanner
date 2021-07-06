@@ -15,16 +15,19 @@ pub struct Rp1210 {
 impl Rp1210 {
     //NULN2R32
     pub fn new(id: &str, the_bus: MultiQueue<Packet>) -> anyhow::Result<Rp1210> {
+		let dll = format!("{}", id);
+		println!("Loading: {}", dll);
         Ok(Rp1210 {
             running: Arc::new(AtomicBool::new(false)),
-            lib: unsafe { Library::new(format!("C:/windows/{}.dll", id))? },
+            lib: unsafe { Library::new(dll)? },
             bus: the_bus,
         })
     }
     // load DLL, make connection and background thread to read all packets into queue
     // FIXME, return a handle to close
     pub fn run(&self, dev: u16, connection: &str) -> Result<()> {
-        self.RP1210_ClientConnect(dev, connection);
+        let rtn = self.RP1210_ClientConnect(dev, connection);
+		println!("Client Connect: {}", rtn);
         let running = self.running.clone();
         let mut bus = self.bus.clone();
         std::thread::spawn(move || {

@@ -25,10 +25,10 @@ pub fn main() -> Result<()> {
     bus.clone().log();
 
     // load RP1210 driver and attach to bus
-    let rp1210 = Rp1210::new("NUL2NXR32", bus.clone())?;
+    let rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
 
     // select first device, J1939 and collect packets
-    rp1210.run(1, "J1939")?;
+    rp1210.run(1, "J1939;Baud=Auto")?;
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
