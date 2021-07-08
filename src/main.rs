@@ -22,7 +22,7 @@ pub fn main() -> Result<()> {
     let bus: MultiQueue<Packet> = MultiQueue::new();
 
     // log everything
-    //bus.clone().log();
+    bus.clone().log();
 
     // load RP1210 driver and attach to bus
     let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
@@ -66,7 +66,7 @@ fn create_application(table: HashMap<u16, J1939DARow>) -> Application {
             String::static_type(),
             String::static_type(),
         ]);
-        for (_spn, row) in &table {
+        for row in table.values() {
             list.insert_with_values(
                 None,
                 &[0, 1, 2, 3, 4],

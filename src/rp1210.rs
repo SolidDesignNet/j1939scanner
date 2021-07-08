@@ -11,12 +11,12 @@ use libloading::os::windows::Symbol as WinSymbol;
 
 pub const PACKET_SIZE: i16 = 1600;
 
-type CC = unsafe extern "stdcall" fn(i32, i16, *const char, i32, i32, i16) -> i16;
-type SEND = unsafe extern "stdcall" fn(i16, *const u8, i16, i16, i16) -> i16;
-type READ = unsafe extern "stdcall" fn(i16, *const u8, i16, i16) -> i16;
-type COMMAND = unsafe extern "stdcall" fn(u16, i16, *const u8, u16) -> i16;
-type VERSION = unsafe extern "stdcall" fn(i16, *const u8, i16, i16) -> i16;
-type GET_ERROR = unsafe extern "stdcall" fn(i16, *const u8) -> i16;
+type ClientConnectType = unsafe extern "stdcall" fn(i32, i16, *const char, i32, i32, i16) -> i16;
+type SendType = unsafe extern "stdcall" fn(i16, *const u8, i16, i16, i16) -> i16;
+type ReadType = unsafe extern "stdcall" fn(i16, *const u8, i16, i16) -> i16;
+type CommandType = unsafe extern "stdcall" fn(u16, i16, *const u8, u16) -> i16;
+type _VERSION = unsafe extern "stdcall" fn(i16, *const u8, i16, i16) -> i16;
+type GetErrorType = unsafe extern "stdcall" fn(i16, *const u8) -> i16;
 
 pub struct Rp1210 {
     lib: Library,
@@ -24,11 +24,11 @@ pub struct Rp1210 {
     running: Arc<AtomicBool>,
     id: i16,
 
-    clientConnect: WinSymbol<CC>,
-    send: WinSymbol<SEND>,
-    read: WinSymbol<READ>,
-    sendCommand: WinSymbol<COMMAND>,
-    get_error: WinSymbol<GET_ERROR>,
+    client_connect_fn: WinSymbol<ClientConnectType>,
+    send_fn: WinSymbol<SendType>,
+    read_fn: WinSymbol<ReadType>,
+    send_command_fn: WinSymbol<CommandType>,
+    get_error_fn: WinSymbol<GetErrorType>,
     /*
       short RP1210_GetErrorMsg(short errCode, byte[] fpchMessage);
       short RP1210_ReadMessage(short nClientID, byte[] fpchAPIMessage, short nBufferSize, short nBlockOnSend);
@@ -44,69 +44,62 @@ pub struct Rp1210 {
 impl Rp1210 {
     //NULN2R32
     pub fn new(id: &str, the_bus: MultiQueue<Packet>) -> Result<Rp1210> {
-        let dll = format!("{}", id);
         let rp1210 = unsafe {
-            let lib = Library::new(dll)?;
-            let cc: Symbol<CC> = (&lib).get(b"RP1210_ClientConnect\0").unwrap();
-            let send: Symbol<SEND> = (&lib).get(b"RP1210_SendMessage\0").unwrap();
-            let sendCommand: Symbol<COMMAND> = (&lib).get(b"RP1210_SendCommand\0").unwrap();
-            let read: Symbol<READ> = (&lib).get(b"RP1210_ReadMessage\0").unwrap();
-            let get_error: Symbol<GET_ERROR> = (&lib).get(b"RP1210_GetErrorMsg\0").unwrap();
+            let lib = Library::new(id.to_string())?;
+            let client_connect: Symbol<ClientConnectType> =
+                (&lib).get(b"RP1210_ClientConnect\0").unwrap();
+            let send: Symbol<SendType> = (&lib).get(b"RP1210_SendMessage\0").unwrap();
+            let send_command: Symbol<CommandType> = (&lib).get(b"RP1210_SendCommand\0").unwrap();
+            let read: Symbol<ReadType> = (&lib).get(b"RP1210_ReadMessage\0").unwrap();
+            let get_error: Symbol<GetErrorType> = (&lib).get(b"RP1210_GetErrorMsg\0").unwrap();
             Rp1210 {
                 id: 0,
                 running: Arc::new(AtomicBool::new(false)),
                 bus: the_bus,
-                clientConnect: cc.into_raw(),
-                send: send.into_raw(),
-                read: read.into_raw(),
-                sendCommand: sendCommand.into_raw(),
-                get_error: get_error.into_raw(),
+                client_connect_fn: client_connect.into_raw(),
+                send_fn: send.into_raw(),
+                read_fn: read.into_raw(),
+                send_command_fn: send_command.into_raw(),
+                get_error_fn: get_error.into_raw(),
                 lib,
             }
         };
         Ok(rp1210)
     }
     // load DLL, make connection and background thread to read all packets into queue
-    // FIXME, return a handle to close
-    pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<()> {
+    pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
         let running = self.running.clone();
         let mut bus = self.bus.clone();
-        let read = *self.read;
-        let id = self.RP1210_ClientConnect(dev, connection, address)?;
-        std::thread::spawn(move || {
-            running.store(true, Relaxed);
-            let buf = &mut Vec::with_capacity(PACKET_SIZE as usize);
-            while running.load(Relaxed) {
-                let p = {
-                    unsafe {
+        let read = *self.read_fn;
+        let rtn = self.client_connect(dev, connection, address);
+        if let Ok(id) = rtn {
+            std::thread::spawn(move || {
+                running.store(true, Relaxed);
+                let buf = &mut Vec::with_capacity(PACKET_SIZE as usize);
+                while running.load(Relaxed) {
+                    let p = unsafe {
                         let size = read(id, buf.as_mut_ptr(), PACKET_SIZE, 1);
                         buf.set_len(size as usize);
                         Packet::new(buf)
-                    }
-                };
-                println!("p: {:?}", p);
-                bus.push(p);
-            }
-        });
-        Ok(())
+                    };
+                    bus.push(p);
+                }
+            });
+        };
+        rtn
     }
     pub fn stop(&self) {
         self.running.store(false, Relaxed)
     }
-    fn sendCommand(&self, cmd: u16, buf: Vec<u8>) -> Result<i16> {
-        unsafe {
-            self.verify_return((self.sendCommand)(
-                cmd,
-                self.id,
-                buf.as_ptr(),
-                buf.len() as u16,
-            ))
-        }
+    fn send_command(&self, cmd: u16, buf: Vec<u8>) -> Result<i16> {
+        self.verify_return(unsafe {
+            (self.send_command_fn)(cmd, self.id, buf.as_ptr(), buf.len() as u16)
+        })
     }
     fn get_error(&self, code: i16) -> Result<String> {
         let mut buf = Vec::with_capacity(1024);
         unsafe {
-            let size = (self.get_error)(code, buf.as_ptr());
+            let size = (self.get_error_fn)(code, buf.as_ptr());
             buf.set_len(size as usize);
             Ok(String::from_utf8_lossy(&buf[..]).to_string())
         }
@@ -119,33 +112,36 @@ impl Rp1210 {
             Ok(v)
         }
     }
-    pub fn RP1210_ClientConnect(
+    pub fn client_connect(
         &mut self,
-        nDeviceID: i16,
-        fpchProtocol: &str,
+        dev_id: i16,
+        connection_string: &str,
         address: u8,
     ) -> Result<i16> {
-        let c_to_print = CString::new(fpchProtocol).expect("CString::new failed");
-        let id = unsafe { (self.clientConnect)(0, 1, c_to_print.as_ptr() as *const char, 0, 0, 0) };
+        let c_to_print = CString::new(connection_string).expect("CString::new failed");
+        let id = unsafe {
+            (self.client_connect_fn)(0, dev_id, c_to_print.as_ptr() as *const char, 0, 0, 0)
+        };
         self.id = self.verify_return(id)?;
-        self.sendCommand(
+        self.send_command(
             /*CMD_PROTECT_J1939_ADDRESS*/ 19,
             vec![
                 address, 0, 0, 0xE0, 0xFF, 0, 0x81, 0, 0, /*CLAIM_BLOCK_UNTIL_DONE*/ 0,
             ],
         )?;
-        self.sendCommand(
+        self.send_command(
             /*CMD_ECHO_TRANSMITTED_MESSAGES*/ 16,
             vec![/*ECHO_ON*/ 1],
         )?;
-        self.sendCommand(/*CMD_SET_ALL_FILTERS_STATES_TO_PASS*/ 3, vec![])?;
+        self.send_command(/*CMD_SET_ALL_FILTERS_STATES_TO_PASS*/ 3, vec![])?;
         Ok(id)
     }
     pub fn unload(self) -> anyhow::Result<()> {
         self.lib.close()?;
         Ok(())
     }
-    pub fn send(&self, packet: &Packet) -> Result<()> {
-        todo!()
+    pub fn send(&self, packet: &Packet) -> Result<i16> {
+        let buf = &packet.data;
+        self.verify_return(unsafe { (self.send_fn)(self.id, buf.as_ptr(), buf.len() as i16, 0, 0) })
     }
 }

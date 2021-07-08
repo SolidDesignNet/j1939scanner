@@ -27,7 +27,9 @@ impl Display for Packet {
     }
 }
 impl Packet {
-    pub fn new(data: &Vec<u8>) -> Packet {
-        Packet { data: data.clone() }
+    pub fn new(data: &[u8]) -> Packet {
+        Packet {
+            data: data.to_vec(),
+        }
     }
 }
