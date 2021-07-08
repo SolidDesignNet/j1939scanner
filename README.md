@@ -2,6 +2,8 @@
 
 This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should purchase a copy of J1939DA_MAR2021.xlsx from SAE.
 
+**STATUS: pre-initial release.  I'm still getting the foundation down.**
+
 ## Building
 j1939scanner uses RP1210 as the CAN adapter.  RP1210 requires 32 bit.
 
