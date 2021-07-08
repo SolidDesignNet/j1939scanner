@@ -22,16 +22,18 @@ pub fn main() -> Result<()> {
     let bus: MultiQueue<Packet> = MultiQueue::new();
 
     // log everything
-    bus.clone().log();
+    //bus.clone().log();
 
     // load RP1210 driver and attach to bus
-    let rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
+    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
 
     // select first device, J1939 and collect packets
-    rp1210.run(1, "J1939;Baud=Auto")?;
+    rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
+    println!("boom");
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
+    println!("table loaded");
 
     // UI
     create_application(table).run(&[]);

@@ -37,7 +37,7 @@ fn push_helper<T>(this: &Arc<RwLock<Option<MQItem<T>>>>, item: T) {
 
 impl<T> MultiQueue<T>
 where
-    T: Copy + Debug + Sync + Send + 'static,
+    T: Clone + Debug + Sync + Send + 'static,
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
@@ -50,7 +50,7 @@ where
             .read()
             .unwrap()
             .as_ref()
-            .map(|i| (i.next.clone(), i.data));
+            .map(|i| (i.next.clone(), i.data.clone()));
         o.map(|i| {
             self.head = i.0;
             i.1

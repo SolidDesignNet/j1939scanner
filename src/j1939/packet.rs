@@ -1,29 +1,33 @@
-#[derive(Debug, Copy, Clone)]
+use std::fmt::*;
+
+#[derive(Debug)]
 pub struct Packet {
-    head: [u8; 8],
-    data: [u8; 8],
+    pub data: Vec<u8>,
 }
-impl Packet {
-    pub fn new() -> Packet {
+impl Clone for Packet {
+    fn clone(&self) -> Self {
         Packet {
-            head: [1, 2, 3, 4, 5, 6, 7, 8],
-            data: [1, 2, 3, 4, 5, 6, 7, 8],
+            data: self.data.clone(),
         }
     }
-    pub fn format(&self) -> String {
-        format!(
-            "{:02X}{:04X}{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
-            self.head[0],
-            ((self.head[1] as u16) << 8) | (self.head[2] as u16),
-            self.head[3],
+}
+impl Display for Packet {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(
+            f,
+            "{:02X}{:04X}{:02X} {}",
             self.data[0],
-            self.data[1],
-            self.data[2],
+            ((self.data[1] as u16) << 8) | (self.data[2] as u16),
             self.data[3],
-            self.data[4],
-            self.data[5],
-            self.data[6],
-            self.data[7],
+            self.data
+                .iter()
+                .skip(8)
+                .fold(String::new(), |a, &n| a + &n.to_string() + ", ")
         )
+    }
+}
+impl Packet {
+    pub fn new(data: &Vec<u8>) -> Packet {
+        Packet { data: data.clone() }
     }
 }
