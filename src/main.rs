@@ -29,7 +29,6 @@ pub fn main() -> Result<()> {
 
     // select first device, J1939 and collect packets
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
-    println!("boom");
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
