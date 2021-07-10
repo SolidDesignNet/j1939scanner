@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
     // UI
     create_application(table).run(&[]);
 
-    Err(anyhow!("What happened?"))
+    Err(anyhow!("Application should not stop running."))
 }
 
 fn config_col(name: &str, id: i32) -> TreeViewColumn {

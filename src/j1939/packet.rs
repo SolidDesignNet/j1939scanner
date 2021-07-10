@@ -74,6 +74,7 @@ impl J1939Packet {
             | (0xFF0000 & (self.packet.data[1] as u64) << 16)
             | (0xFF00 & (self.packet.data[2] as u64) << 8)
             | (0xFF & (self.packet.data[3] as u64));
+        // FIXME timestampweight comes from RP1210 INI file.
         //timestamp *= self.timestampWeight;
         timestamp
     }

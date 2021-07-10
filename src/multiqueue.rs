@@ -7,10 +7,6 @@ struct MQItem<T> {
     data: T,
     next: Arc<RwLock<Option<MQItem<T>>>>,
 }
-#[derive(Clone)]
-pub struct MultiQueue<T> {
-    head: Arc<RwLock<Option<MQItem<T>>>>,
-}
 impl<T> MQItem<T> {
     fn new(data: T) -> MQItem<T> {
         MQItem {
@@ -18,8 +14,6 @@ impl<T> MQItem<T> {
             next: Arc::new(RwLock::new(None)),
         }
     }
-}
-impl<T> MQItem<T> {
     fn push(&self, item: T) {
         push_helper(&self.next, item);
     }
@@ -35,6 +29,11 @@ fn push_helper<T>(this: &Arc<RwLock<Option<MQItem<T>>>>, item: T) {
     }
 }
 
+#[derive(Clone)]
+pub struct MultiQueue<T> {
+    head: Arc<RwLock<Option<MQItem<T>>>>,
+}
+
 impl<T> MultiQueue<T>
 where
     T: Clone + Sync + Send,
@@ -45,13 +44,13 @@ where
         }
     }
     pub fn pull(&mut self) -> Option<T> {
-        let o = self
+        let clones = self
             .head
             .read()
             .unwrap()
             .as_ref()
             .map(|i| (i.next.clone(), i.data.clone()));
-        o.map(|i| {
+        clones.map(|i| {
             self.head = i.0;
             i.1
         })

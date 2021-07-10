@@ -9,7 +9,7 @@ use crate::j1939::packet::*;
 use crate::multiqueue::*;
 use libloading::os::windows::Symbol as WinSymbol;
 
-pub const PACKET_SIZE: i16 = 1600;
+pub const PACKET_SIZE: usize = 1600;
 
 // TODO: break out library calls into private struct
 
@@ -77,12 +77,11 @@ impl Rp1210 {
         if let Ok(id) = rtn {
             std::thread::spawn(move || {
                 running.store(true, Relaxed);
-                let buf = &mut Vec::with_capacity(PACKET_SIZE as usize);
+                let mut buf: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
                 while running.load(Relaxed) {
                     let p = unsafe {
-                        let size = read(id, buf.as_mut_ptr(), PACKET_SIZE, 1);
-                        buf.set_len(size as usize);
-                        J1939Packet::new(buf)
+                        let size = read(id, buf.as_mut_ptr(), PACKET_SIZE as i16, 1) as usize;
+                        J1939Packet::new(&buf[0..size])
                     };
                     bus.push(p);
                 }
@@ -90,8 +89,9 @@ impl Rp1210 {
         };
         rtn
     }
-    pub fn stop(&self) {
-        self.running.store(false, Relaxed)
+    pub fn stop(&self) -> Result<()> {
+        self.running.store(false, Relaxed);
+        Ok(())
     }
     fn send_command(&self, cmd: u16, buf: Vec<u8>) -> Result<i16> {
         self.verify_return(unsafe {
@@ -99,11 +99,10 @@ impl Rp1210 {
         })
     }
     fn get_error(&self, code: i16) -> Result<String> {
-        let mut buf = Vec::with_capacity(1024);
+        let mut buf: [u8; 1024] = [0; 1024];
         unsafe {
-            let size = (self.get_error_fn)(code, buf.as_ptr());
-            buf.set_len(size as usize);
-            Ok(String::from_utf8_lossy(&buf[..]).to_string())
+            let size = (self.get_error_fn)(code, buf.as_mut_ptr()) as usize;
+            Ok(String::from_utf8_lossy(&buf[0..size]).to_string())
         }
     }
     fn verify_return(&self, v: i16) -> Result<i16> {
