@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::Display;
 use std::option::*;
 use std::sync::*;
 use std::thread::JoinHandle;
@@ -37,7 +37,7 @@ fn push_helper<T>(this: &Arc<RwLock<Option<MQItem<T>>>>, item: T) {
 
 impl<T> MultiQueue<T>
 where
-    T: Clone + Debug + Sync + Send + 'static,
+    T: Clone + Sync + Send,
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
@@ -64,9 +64,17 @@ where
             head: self.head.clone(),
         }
     }
+}
+impl<T> MultiQueue<T>
+where
+    T: Clone + Sync + Send + Display + 'static,
+{
     pub fn log(mut self) -> JoinHandle<()> {
         std::thread::spawn(move || loop {
-            println!("{:?}", self.pull())
+            std::thread::yield_now();
+            if let Some(p) = self.pull() {
+                println!("{}", p)
+            }
         })
     }
 }

@@ -19,7 +19,7 @@ use rp1210::*;
 
 pub fn main() -> Result<()> {
     //create abstract CAN bus
-    let bus: MultiQueue<Packet> = MultiQueue::new();
+    let bus: MultiQueue<J1939Packet> = MultiQueue::new();
 
     // log everything
     bus.clone().log();
@@ -32,7 +32,6 @@ pub fn main() -> Result<()> {
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
-    println!("table loaded");
 
     // UI
     create_application(table).run(&[]);

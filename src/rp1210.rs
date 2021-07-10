@@ -11,6 +11,8 @@ use libloading::os::windows::Symbol as WinSymbol;
 
 pub const PACKET_SIZE: i16 = 1600;
 
+// TODO: break out library calls into private struct
+
 type ClientConnectType = unsafe extern "stdcall" fn(i32, i16, *const char, i32, i32, i16) -> i16;
 type SendType = unsafe extern "stdcall" fn(i16, *const u8, i16, i16, i16) -> i16;
 type ReadType = unsafe extern "stdcall" fn(i16, *const u8, i16, i16) -> i16;
@@ -20,7 +22,7 @@ type GetErrorType = unsafe extern "stdcall" fn(i16, *const u8) -> i16;
 
 pub struct Rp1210 {
     lib: Library,
-    bus: MultiQueue<Packet>,
+    bus: MultiQueue<J1939Packet>,
     running: Arc<AtomicBool>,
     id: i16,
 
@@ -43,7 +45,7 @@ pub struct Rp1210 {
 }
 impl Rp1210 {
     //NULN2R32
-    pub fn new(id: &str, the_bus: MultiQueue<Packet>) -> Result<Rp1210> {
+    pub fn new(id: &str, the_bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = unsafe {
             let lib = Library::new(id.to_string())?;
             let client_connect: Symbol<ClientConnectType> =
@@ -80,7 +82,7 @@ impl Rp1210 {
                     let p = unsafe {
                         let size = read(id, buf.as_mut_ptr(), PACKET_SIZE, 1);
                         buf.set_len(size as usize);
-                        Packet::new(buf)
+                        J1939Packet::new(buf)
                     };
                     bus.push(p);
                 }
@@ -106,8 +108,7 @@ impl Rp1210 {
     }
     fn verify_return(&self, v: i16) -> Result<i16> {
         if v < 0 {
-            let msg = self.get_error(-v)?;
-            Err(anyhow!(msg))
+            Err(anyhow!(self.get_error(-v)?))
         } else {
             Ok(v)
         }
