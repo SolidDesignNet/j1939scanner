@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 mod j1939;
 mod multiqueue;
+#[cfg_attr(not(target_os = "windows"), path = "sim.rs")]
+#[cfg_attr(target_os = "windows", path = "rp1210.rs")]
 mod rp1210;
 
 use j1939::packet::*;
