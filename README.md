@@ -4,6 +4,15 @@ This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should pur
 
 **STATUS: pre-initial release.  I'm still getting the foundation down.**
 
+Currently, the tool opens a hardcoded RP1210 device, collects packets onto a broadcast channel, logs them from another thread, loads the J1939DA and displays a table.
+
+Next steps:
+1. Packaging for distribution (neds to include GTK DLLs).
+2. Display a table of broadcast signals.
+3. J1939 table searching (because it's too big for Excel)
+4. Fault table.
+5. On Request signals.
+
 ## Building
 j1939scanner uses RP1210 as the CAN adapter.  RP1210 requires 32 bit.
 
@@ -11,8 +20,6 @@ j1939scanner uses RP1210 as the CAN adapter.  RP1210 requires 32 bit.
 
 2. install the msys2 32 bit GTK libraries:
 From: https://github.com/gtk-rs/gtk/issues/494
-
-Steps that seems work on empty Windows7 VM
 
 Install rust with rustup‑init.exe (as script in console install to "C:\users\USER" anyway)
 with i686-pc-windows-gnu/stable/yes
