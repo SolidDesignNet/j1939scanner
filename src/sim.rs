@@ -12,10 +12,10 @@ pub struct Rp1210 {
 }
 impl Rp1210 {
     //NULN2R32
-    pub fn new(id: &str, the_bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
+    pub fn new(id: &str, bus: &MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = Rp1210 {
             running: Arc::new(AtomicBool::new(false)),
-            bus: the_bus,
+            bus: bus.clone(),
         };
         Ok(rp1210)
     }
