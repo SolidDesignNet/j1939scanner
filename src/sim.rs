@@ -6,13 +6,13 @@ use std::sync::*;
 use crate::j1939::packet::*;
 use crate::multiqueue::*;
 
-pub struct Rp1210<'a> {
-    bus: &'a MultiQueue<J1939Packet>,
+pub struct Rp1210 {
+    bus: MultiQueue<J1939Packet>,
     running: Arc<AtomicBool>,
 }
-impl<'a> Rp1210<'a> {
+impl Rp1210 {
     //NULN2R32
-    pub fn new(id: &str, bus: &'a MultiQueue<J1939Packet>) -> Result<Rp1210<'a>> {
+    pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = Rp1210 {
             running: Arc::new(AtomicBool::new(false)),
             bus,
@@ -22,8 +22,11 @@ impl<'a> Rp1210<'a> {
     // load DLL, make connection and background thread to read all packets into queue
     pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
         let running = self.running.clone();
+        let mut bus = self.bus.clone();
         std::thread::spawn(move || {
             running.store(true, Relaxed);
+            // example to test compile
+            bus.push(J1939Packet::new(0x18DA00F9, &[0x10, 0x01]));
             todo!() // send traffic
         });
         Ok(0)

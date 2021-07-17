@@ -11,9 +11,11 @@ struct MqItem<T> {
 /// Linked list nodes
 type MqNode<T> = Arc<RwLock<Option<MqItem<T>>>>;
 
+#[derive(Clone)]
 pub struct MultiQueue<T> {
     // shared head that always points to the empty Arc<RwLock>
-    head: MqNode<T>,
+    // Yes, this seems like overkill, but we need to clone multiqueues to easily use them in threads, so this make cloning work easily.
+    head: Arc<RwLock<MqNode<T>>>,
 }
 
 /// Iterator
@@ -46,12 +48,12 @@ where
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
-            head: Arc::new(RwLock::new(None)),
+            head: Arc::new(RwLock::new(Arc::new(RwLock::new(None)))),
         }
     }
     pub fn iter(&self) -> impl Iterator<Item = T> {
         MqIter {
-            head: self.head.clone(),
+            head: self.head.read().unwrap().clone(),
         }
     }
     pub fn push(&mut self, item: T) {
@@ -60,8 +62,8 @@ where
             next: Arc::new(RwLock::new(None)),
         };
         let clone = next.next.clone();
-        *self.head.write().unwrap() = Some(next);
-        self.head = clone;
+        *self.head.read().unwrap().write().unwrap() = Some(next);
+        *self.head.write().unwrap() = clone;
     }
 }
 

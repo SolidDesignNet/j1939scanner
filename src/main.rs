@@ -28,7 +28,7 @@ pub fn main() -> Result<()> {
 
     // load RP1210 driver and attach to bus
     //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
-    let mut rp1210 = Rp1210::new("NXULNK32", &bus)?;
+    let mut rp1210 = Rp1210::new("NXULNK32", bus.clone())?;
 
     // select first device, J1939 and collect packets
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
