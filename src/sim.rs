@@ -22,7 +22,6 @@ impl Rp1210 {
     // load DLL, make connection and background thread to read all packets into queue
     pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
         let running = self.running.clone();
-        let mut bus = self.bus.clone();
         std::thread::spawn(move || {
             running.store(true, Relaxed);
             todo!() // send traffic

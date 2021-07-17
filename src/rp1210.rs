@@ -71,7 +71,7 @@ impl Rp1210 {
     // load DLL, make connection and background thread to read all packets into queue
     pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
         let running = self.running.clone();
-        let mut bus = self.bus.clone();
+        let bus = self.bus.clone();
         let read = *self.read_fn;
         let rtn = self.client_connect(dev, connection, address);
         if let Ok(id) = rtn {

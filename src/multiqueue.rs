@@ -11,10 +11,9 @@ struct MqItem<T> {
 /// Linked list nodes
 type MqNode<T> = Arc<RwLock<Option<MqItem<T>>>>;
 
-#[derive(Clone)]
 pub struct MultiQueue<T> {
     // shared head that always points to the empty Arc<RwLock>
-    head: Arc<RwLock<MqNode<T>>>,
+    head: MqNode<T>,
 }
 
 /// Iterator
@@ -47,12 +46,12 @@ where
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
-            head: Arc::new(RwLock::new(Arc::new(RwLock::new(None)))),
+            head: Arc::new(RwLock::new(None)),
         }
     }
-    fn iter(&self) -> MqIter<T> {
+    pub fn iter(&self) -> impl Iterator<Item = T> {
         MqIter {
-            head: self.head.read().unwrap().clone(),
+            head: self.head.clone(),
         }
     }
     pub fn push(&mut self, item: T) {
@@ -60,22 +59,18 @@ where
             data: item,
             next: Arc::new(RwLock::new(None)),
         };
-        let mut h = self.head.write().unwrap();
         let clone = next.next.clone();
-        *h.write().unwrap() = Some(next);
-        *h = clone;
-    }
-    pub fn clone(&self) -> Self {
-        MultiQueue {
-            head: self.head.clone(),
-        }
+        *self.head.write().unwrap() = Some(next);
+        self.head = clone;
     }
 }
+
 impl<T> MultiQueue<T>
 where
     T: Clone + Sync + Send + Display + 'static,
 {
-    pub fn log(self) -> JoinHandle<()> {
+    /// Lazy man's debugging
+    pub fn log(&self) -> JoinHandle<()> {
         let mut iter = self.iter();
         std::thread::spawn(move || loop {
             std::thread::yield_now();
