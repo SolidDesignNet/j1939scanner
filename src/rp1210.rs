@@ -45,7 +45,7 @@ pub struct Rp1210 {
 }
 impl Rp1210 {
     //NULN2R32
-    pub fn new(id: &str, bus: &MultiQueue<J1939Packet>) -> Result<Rp1210> {
+    pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = unsafe {
             let lib = Library::new(id.to_string())?;
             let client_connect: Symbol<ClientConnectType> =
