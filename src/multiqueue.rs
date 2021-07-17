@@ -11,7 +11,6 @@ struct MqItem<T> {
 /// Linked list nodes
 type MqNode<T> = Arc<RwLock<Option<MqItem<T>>>>;
 
-#[derive(Clone)]
 pub struct MultiQueue<T> {
     // shared head that always points to the empty Arc<RwLock>
     head: MqNode<T>,

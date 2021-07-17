@@ -6,16 +6,16 @@ use std::sync::*;
 use crate::j1939::packet::*;
 use crate::multiqueue::*;
 
-pub struct Rp1210 {
-    bus: MultiQueue<J1939Packet>,
+pub struct Rp1210<'a> {
+    bus: &'a MultiQueue<J1939Packet>,
     running: Arc<AtomicBool>,
 }
-impl Rp1210 {
+impl<'a> Rp1210<'a> {
     //NULN2R32
-    pub fn new(id: &str, bus: &MultiQueue<J1939Packet>) -> Result<Rp1210> {
+    pub fn new(id: &str, bus: &'a MultiQueue<J1939Packet>) -> Result<Rp1210<'a>> {
         let rp1210 = Rp1210 {
             running: Arc::new(AtomicBool::new(false)),
-            bus: bus.clone(),
+            bus,
         };
         Ok(rp1210)
     }
