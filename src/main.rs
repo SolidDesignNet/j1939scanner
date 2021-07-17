@@ -21,17 +21,23 @@ use rp1210::*;
 
 pub fn main() -> Result<()> {
     //create abstract CAN bus
-    let bus: MultiQueue<J1939Packet> = MultiQueue::new();
+    let mut bus: MultiQueue<J1939Packet> = MultiQueue::new();
 
     // log everything
     bus.log();
 
     // load RP1210 driver and attach to bus
     //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
-    let mut rp1210 = Rp1210::new("NXULNK32", bus)?;
+    let mut rp1210 = Rp1210::new("NXULNK32", &bus)?;
 
     // select first device, J1939 and collect packets
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
+
+    // test send
+    for i in [1..120] {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        bus.push(J1939Packet::new(0x18DA00F9, &[0x10, 0x01]));
+    }
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;

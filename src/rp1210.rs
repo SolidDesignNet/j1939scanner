@@ -45,7 +45,7 @@ pub struct Rp1210 {
 }
 impl Rp1210 {
     //NULN2R32
-    pub fn new(id: &str, the_bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
+    pub fn new(id: &str, bus: &MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = unsafe {
             let lib = Library::new(id.to_string())?;
             let client_connect: Symbol<ClientConnectType> =
@@ -57,7 +57,7 @@ impl Rp1210 {
             Rp1210 {
                 id: 0,
                 running: Arc::new(AtomicBool::new(false)),
-                bus: the_bus,
+                bus: bus.clone(),
                 client_connect_fn: client_connect.into_raw(),
                 send_fn: send.into_raw(),
                 read_fn: read.into_raw(),
@@ -71,7 +71,7 @@ impl Rp1210 {
     // load DLL, make connection and background thread to read all packets into queue
     pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
         let running = self.running.clone();
-        let bus = self.bus.clone();
+        let mut bus = self.bus.clone();
         let read = *self.read_fn;
         let rtn = self.client_connect(dev, connection, address);
         if let Ok(id) = rtn {
@@ -81,7 +81,7 @@ impl Rp1210 {
                 while running.load(Relaxed) {
                     let p = unsafe {
                         let size = read(id, buf.as_mut_ptr(), PACKET_SIZE as i16, 1) as usize;
-                        J1939Packet::new(&buf[0..size])
+                        J1939Packet::new_rp1210(&buf[0..size])
                     };
                     bus.push(p);
                 }

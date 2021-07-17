@@ -7,70 +7,70 @@ pub mod packet;
 
 #[derive(Debug, Deserialize)]
 pub struct J1939DARow {
-    // #[serde(rename = "Revised")]
-    // #[serde(rename = "PG Revised")]
-    // #[serde(rename = "SP Revised")]
-    // #[serde(rename = "SP to PG Map Revised")]
-    #[serde(rename = "PGN")]
+    // #[serde(alias = "Revised")]
+    // #[serde(alias = "PG Revised")]
+    // #[serde(alias = "SP Revised")]
+    // #[serde(alias = "SP to PG Map Revised")]
+    #[serde(alias = "PGN")]
     pub pg: Option<u16>,
 
-    #[serde(rename = "PG Label")]
+    #[serde(alias = "PG Label")]
     pub pg_label: Option<String>,
-    #[serde(rename = "PG Acronym")]
+    #[serde(alias = "PG Acronym")]
     pub pg_acronym: Option<String>,
 
-    // #[serde(rename = "PG Description")]
-    // #[serde(rename = "EDP")]
-    // #[serde(rename = "DP")]
-    // #[serde(rename = "PF")]
-    // #[serde(rename = "PS")]
-    // #[serde(rename = "Multipacket")]
-    #[serde(rename = "Transmission Rate")]
+    // #[serde(alias = "PG Description")]
+    // #[serde(alias = "EDP")]
+    // #[serde(alias = "DP")]
+    // #[serde(alias = "PF")]
+    // #[serde(alias = "PS")]
+    // #[serde(alias = "Multipacket")]
+    #[serde(alias = "Transmission Rate")]
     pub transmission_rate: Option<String>,
 
-    // #[serde(rename = "PG Data Length")]
-    // #[serde(rename = "Default Priority")]
-    // #[serde(rename = "PG Reference")]
-    // #[serde(rename = "SP Position in PG")]
-    #[serde(rename = "SP Start Bit")]
+    // #[serde(alias = "PG Data Length")]
+    // #[serde(alias = "Default Priority")]
+    // #[serde(alias = "PG Reference")]
+    // #[serde(alias = "SP Position in PG")]
+    #[serde(alias = "SP Start Bit")]
     pub sp_start_bit: Option<String>,
 
-    #[serde(rename = "SPN")]
+    #[serde(alias = "SPN")]
     pub spn: Option<u16>,
 
-    #[serde(rename = "SP Label")]
+    #[serde(alias = "SP Label")]
     pub sp_label: Option<String>,
 
-    #[serde(rename = "SP Description")]
+    #[serde(alias = "SP Description")]
     pub sp_description: Option<String>,
 
-    // #[serde(rename = "SP Length")]
-    // #[serde(rename = "Scaling")]
-    // #[serde(rename = "Offset")]
-    // #[serde(rename = "Data Range")]
-    // #[serde(rename = "Operational Range")]
-    #[serde(rename = "Unit")]
+    // #[serde(alias = "SP Length")]
+    // #[serde(alias = "Scaling")]
+    // #[serde(alias = "Offset")]
+    // #[serde(alias = "Data Range")]
+    // #[serde(alias = "Operational Range")]
+    #[serde(alias = "Unit")]
     pub unit: Option<String>,
-    // #[serde(rename = "SLOT Identifier")]
-    // #[serde(rename = "SLOT Name")]
-    // #[serde(rename = "SP Type")]
-    // #[serde(rename = "SP Reference")]
-    #[serde(rename = "Scale Factor (value only)")]
+    // #[serde(alias = "SLOT Identifier")]
+    // #[serde(alias = "SLOT Name")]
+    // #[serde(alias = "SP Type")]
+    // #[serde(alias = "SP Reference")]
+    #[serde(alias = "Scale Factor (value only)")]
     pub scale: Option<f64>,
-    #[serde(rename = "Offset (value only)")]
+    #[serde(alias = "Offset (value only)")]
     pub offset: Option<f64>,
-    #[serde(rename = "Range Maximum (value only)")]
+    #[serde(alias = "Range Maximum (value only)")]
     pub max: Option<f64>,
 
-    #[serde(rename = "Length Minimum (bits)")]
+    #[serde(alias = "Length Minimum (bits)")]
     pub length_min: Option<u16>,
-    #[serde(rename = "Length Maximum (bits)")]
+    #[serde(alias = "Length Maximum (bits)")]
     pub length_max: Option<u16>,
-    // #[serde(rename = "SP Document")]
-    // #[serde(rename = "PG Document")]
-    // #[serde(rename = "SP Created or Modified Date")]
-    // #[serde(rename = "PG Created or Modified Date")]
-    // #[serde(rename = "SP to PG Mapping Created or Modified Date")]
+    // #[serde(alias = "SP Document")]
+    // #[serde(alias = "PG Document")]
+    // #[serde(alias = "SP Created or Modified Date")]
+    // #[serde(alias = "PG Created or Modified Date")]
+    // #[serde(alias = "SP to PG Mapping Created or Modified Date")]
 }
 impl J1939DARow {}
 pub fn load_j1939da(file: &str) -> anyhow::Result<HashMap<u16, J1939DARow>> {
