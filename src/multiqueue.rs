@@ -3,35 +3,42 @@ use std::option::*;
 use std::sync::*;
 use std::thread::JoinHandle;
 
-struct MQItem<T> {
+/// Linked list data
+struct MqItem<T> {
     data: T,
-    next: Arc<RwLock<Option<MQItem<T>>>>,
+    next: MqNode<T>,
 }
-impl<T> MQItem<T> {
-    fn new(data: T) -> MQItem<T> {
-        MQItem {
-            data,
-            next: Arc::new(RwLock::new(None)),
-        }
-    }
-    fn push(&self, item: T) {
-        push_helper(&self.next, item);
-    }
-}
-
-// MultiQueue.push and MQItem.push are the same
-fn push_helper<T>(this: &Arc<RwLock<Option<MQItem<T>>>>, item: T) {
-    let mut n = this.write().unwrap();
-    if n.is_some() {
-        n.as_ref().unwrap().push(item)
-    } else {
-        *n = Some(MQItem::new(item));
-    }
-}
+/// Linked list nodes
+type MqNode<T> = Arc<RwLock<Option<MqItem<T>>>>;
 
 #[derive(Clone)]
 pub struct MultiQueue<T> {
-    head: Arc<RwLock<Option<MQItem<T>>>>,
+    // shared head that always points to the empty Arc<RwLock>
+    head: Arc<RwLock<MqNode<T>>>,
+}
+
+/// Iterator
+struct MqIter<T> {
+    head: MqNode<T>,
+}
+
+impl<T> Iterator for MqIter<T>
+where
+    T: Clone + Sync + Send,
+{
+    type Item = T;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> {
+        let o = self
+            .head
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|i| (i.data.clone(), i.next.clone()));
+        o.map(|clones| {
+            self.head = clones.1;
+            clones.0
+        })
+    }
 }
 
 impl<T> MultiQueue<T>
@@ -40,23 +47,23 @@ where
 {
     pub fn new() -> MultiQueue<T> {
         MultiQueue {
-            head: Arc::new(RwLock::new(None)),
+            head: Arc::new(RwLock::new(Arc::new(RwLock::new(None)))),
         }
     }
-    pub fn pull(&mut self) -> Option<T> {
-        let clones = self
-            .head
-            .read()
-            .unwrap()
-            .as_ref()
-            .map(|i| (i.next.clone(), i.data.clone()));
-        clones.map(|i| {
-            self.head = i.0;
-            i.1
-        })
+    fn iter(&self) -> MqIter<T> {
+        MqIter {
+            head: self.head.read().unwrap().clone(),
+        }
     }
     pub fn push(&mut self, item: T) {
-        push_helper(&self.head, item);
+        let next = MqItem {
+            data: item,
+            next: Arc::new(RwLock::new(None)),
+        };
+        let mut h = self.head.write().unwrap();
+        let clone = next.next.clone();
+        *h.write().unwrap() = Some(next);
+        *h = clone;
     }
     pub fn clone(&self) -> Self {
         MultiQueue {
@@ -68,10 +75,11 @@ impl<T> MultiQueue<T>
 where
     T: Clone + Sync + Send + Display + 'static,
 {
-    pub fn log(mut self) -> JoinHandle<()> {
+    pub fn log(self) -> JoinHandle<()> {
+        let mut iter = self.iter();
         std::thread::spawn(move || loop {
             std::thread::yield_now();
-            if let Some(p) = self.pull() {
+            if let Some(p) = iter.next() {
                 println!("{}", p)
             }
         })
@@ -86,10 +94,11 @@ mod tests {
     fn simple() {
         let mut q: MultiQueue<&str> = MultiQueue::new();
         q.push("one");
-        // let mut q = q.clone();
+        let mut i = q.iter();
         q.push("two");
         q.push("three");
-        assert_eq!("two", q.pull().unwrap());
-        assert_eq!(std::option::Option::None, q.pull());
+        assert_eq!("two", i.next().unwrap());
+        assert_eq!("three", i.next().unwrap());
+        assert_eq!(std::option::Option::None, i.next());
     }
 }
