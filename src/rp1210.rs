@@ -140,8 +140,8 @@ impl Rp1210 {
         self.lib.close()?;
         Ok(())
     }
-    pub fn send(&self, packet: &Packet) -> Result<i16> {
-        let buf = &packet.data;
+    pub fn send(&self, packet: &J1939Packet) -> Result<i16> {
+        let buf = &packet.packet.data;
         self.verify_return(unsafe { (self.send_fn)(self.id, buf.as_ptr(), buf.len() as i16, 0, 0) })
     }
 }

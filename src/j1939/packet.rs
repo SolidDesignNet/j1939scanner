@@ -13,12 +13,14 @@ impl Clone for Packet {
 }
 
 pub struct J1939Packet {
-    packet: Packet,
+    pub packet: Packet,
+    pub tx: bool,
 }
 impl Clone for J1939Packet {
     fn clone(&self) -> Self {
         J1939Packet {
             packet: self.packet.clone(),
+            tx: self.tx,
         }
     }
 }
@@ -62,17 +64,21 @@ impl J1939Packet {
     pub fn new_rp1210(data: &[u8]) -> J1939Packet {
         J1939Packet {
             packet: Packet::new_rp1210(data),
+            tx: true,
         }
     }
     pub fn length(&self) -> usize {
-        self.packet.data.len() - 11
+        self.packet.data.len() - 6 - self.offset()
     }
 
     pub fn new(head: u32, data: &[u8]) -> J1939Packet {
-        let buf = Vec::with_capacity(8 + data.len());
-        todo!();
+        let pgn = 0xFFFF & (head >> 8);
+        let da = if pgn < 0xF000 { 0xFF & pgn } else { 0 } as u8;
+        let hb = head.to_be_bytes();
+        let buf = [&hb[1..], &[hb[0], 0x3, da], data].concat();
         J1939Packet {
-            packet: Packet::new_rp1210(&buf[..]),
+            packet: Packet::new_rp1210(&buf),
+            tx: true,
         }
     }
     pub fn time(&self) -> u64 {
@@ -84,25 +90,32 @@ impl J1939Packet {
         //timestamp *= self.timestampWeight;
         timestamp
     }
+    fn offset(&self) -> usize {
+        if self.tx {
+            0
+        } else {
+            5
+        }
+    }
     pub fn echo(&self) -> bool {
-        self.packet.data[4] != 0
+        self.tx || self.packet.data[4] != 0
     }
     //
     pub fn source(&self) -> u8 {
-        self.packet.data[9]
+        self.packet.data[4 + self.offset()]
     }
     pub fn pgn(&self) -> u32 {
-        let mut pgn = ((self.packet.data[7] as u32 & 0xFF) << 16)
-            | ((self.packet.data[6] as u32 & 0xFF) << 8)
-            | (self.packet.data[5] as u32 & 0xFF);
+        let mut pgn = ((self.packet.data[2 + self.offset()] as u32 & 0xFF) << 16)
+            | ((self.packet.data[1 + self.offset()] as u32 & 0xFF) << 8)
+            | (self.packet.data[self.offset()] as u32 & 0xFF);
         if pgn < 0xF000 {
-            let destination = self.packet.data[10] as u32;
+            let destination = self.packet.data[5 + self.offset()] as u32;
             pgn |= destination;
         }
         pgn
     }
     pub fn priority(&self) -> u8 {
-        self.packet.data[8] & 0x07
+        self.packet.data[3 + self.offset()] & 0x07
     }
     pub fn header(&self) -> String {
         format!(

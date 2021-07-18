@@ -34,9 +34,11 @@ pub fn main() -> Result<()> {
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
 
     // test send
-    for i in [1..120] {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        bus.push(J1939Packet::new(0x18DA00F9, &[0x10, 0x01]));
+    for i in 1..120 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let p = J1939Packet::new(0x18DA00F9, &[0x10, 0x01, i as u8]);
+        println!("sending {}", p);
+        rp1210.send(&p)?;
     }
 
     // load J1939DA
