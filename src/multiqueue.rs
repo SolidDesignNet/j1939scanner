@@ -56,14 +56,17 @@ where
             head: self.head.read().unwrap().clone(),
         }
     }
+
     pub fn push(&mut self, item: T) {
-        let next = MqItem {
+        let empty = Arc::new(RwLock::new(None));
+        let mut head = self.head.write().unwrap();
+        // add the new item.
+        *head.write().unwrap() = Some(MqItem {
             data: item,
-            next: Arc::new(RwLock::new(None)),
-        };
-        let clone = next.next.clone();
-        *self.head.read().unwrap().write().unwrap() = Some(next);
-        *self.head.write().unwrap() = clone;
+            next: empty.clone(),
+        });
+        // update head to point to the new empty item.
+        *head = empty;
     }
 }
 

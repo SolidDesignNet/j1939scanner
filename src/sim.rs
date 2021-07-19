@@ -26,7 +26,7 @@ impl Rp1210 {
         std::thread::spawn(move || {
             running.store(true, Relaxed);
             // example to test compile
-            bus.push(J1939Packet::new(0x18DA00F9, &[0x10, 0x01]));
+            bus.push(J1939Packet::new(0x18DA55F9, &[0x10, 0x01]));
             todo!() // send traffic
         });
         Ok(0)
@@ -46,7 +46,7 @@ impl Rp1210 {
     pub fn unload(self) -> anyhow::Result<()> {
         todo!()
     }
-    pub fn send(&self, packet: &Packet) -> Result<i16> {
+    pub fn send(&self, packet: &J1939Packet) -> Result<i16> {
         todo!()
     }
 }
