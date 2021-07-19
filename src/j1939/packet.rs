@@ -32,15 +32,16 @@ impl Display for J1939Packet {
             self.time(),
             self.header(),
             self.length(),
-            {
-                let mut s = String::new();
-                for byte in self.data() {
-                    write!(&mut s, " {:02X}", byte).expect("Unable to write");
-                }
-                s
-            }
+            as_hex(&self.data()[..])
         )
     }
+}
+fn as_hex(data: &[u8]) -> String {
+    let mut s = String::new();
+    for byte in data {
+        write!(&mut s, " {:02X}", byte).expect("Unable to write");
+    }
+    s
 }
 impl Display for Packet {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -75,20 +76,25 @@ impl J1939Packet {
         let pgn = 0xFFFF & (head >> 8);
         let da = if pgn < 0xF000 { 0xFF & pgn } else { 0 } as u8;
         let hb = head.to_be_bytes();
-        let buf = [&hb[1..], &[hb[0], 0x3, da], data].concat();
+        let buf = [&[hb[2], hb[1], hb[0] & 0x3, hb[0] >> 2, hb[3], da], data].concat();
+        println!(" raw:{}", as_hex(&buf));
         J1939Packet {
             packet: Packet::new_rp1210(&buf),
             tx: true,
         }
     }
     pub fn time(&self) -> u64 {
-        let timestamp = (0xFF000000 & (self.packet.data[0] as u64) << 24)
-            | (0xFF0000 & (self.packet.data[1] as u64) << 16)
-            | (0xFF00 & (self.packet.data[2] as u64) << 8)
-            | (0xFF & (self.packet.data[3] as u64));
-        // FIXME timestampweight comes from RP1210 INI file.
-        //timestamp *= self.timestampWeight;
-        timestamp
+        if self.tx {
+            0
+        } else {
+            // FIXME mask is probably not necessary
+            (0xFF000000 & (self.packet.data[0] as u64) << 24)
+                | (0xFF0000 & (self.packet.data[1] as u64) << 16)
+                | (0xFF00 & (self.packet.data[2] as u64) << 8)
+                | (0xFF & (self.packet.data[3] as u64))
+            // FIXME timestampweight comes from RP1210 INI file.
+            // * self.timestampWeight
+        }
     }
     fn offset(&self) -> usize {
         if self.tx {
@@ -125,6 +131,11 @@ impl J1939Packet {
         )
     }
     pub fn data(&self) -> Vec<u8> {
-        self.packet.data.clone().into_iter().skip(11).collect()
+        self.packet
+            .data
+            .clone()
+            .into_iter()
+            .skip(6 + self.offset())
+            .collect()
     }
 }
