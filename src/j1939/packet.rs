@@ -28,11 +28,12 @@ impl Display for J1939Packet {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(
             f,
-            "{} {} [{}]{}",
+            "{:12.4} {} [{}]{}{}",
             self.time(),
             self.header(),
             self.length(),
-            as_hex(&self.data()[..])
+            as_hex(&self.data()[..]),
+            if self.echo() { " (TX)" } else { "" }
         )
     }
 }
@@ -65,7 +66,7 @@ impl J1939Packet {
     pub fn new_rp1210(data: &[u8]) -> J1939Packet {
         J1939Packet {
             packet: Packet::new_rp1210(data),
-            tx: true,
+            tx: false,
         }
     }
     pub fn length(&self) -> usize {
@@ -77,25 +78,27 @@ impl J1939Packet {
         let da = if pgn < 0xF000 { 0xFF & pgn } else { 0 } as u8;
         let hb = head.to_be_bytes();
         let buf = [&[hb[2], hb[1], hb[0] & 0x3, hb[0] >> 2, hb[3], da], data].concat();
-        println!(" raw:{}", as_hex(&buf));
         J1939Packet {
             packet: Packet::new_rp1210(&buf),
             tx: true,
         }
     }
-    pub fn time(&self) -> u64 {
+    pub fn time(&self) -> f64 {
         if self.tx {
-            0
+            0.0
         } else {
             // FIXME mask is probably not necessary
-            (0xFF000000 & (self.packet.data[0] as u64) << 24)
+            ((0xFF000000 & (self.packet.data[0] as u64) << 24)
                 | (0xFF0000 & (self.packet.data[1] as u64) << 16)
                 | (0xFF00 & (self.packet.data[2] as u64) << 8)
-                | (0xFF & (self.packet.data[3] as u64))
+                | (0xFF & (self.packet.data[3] as u64))) as f64
             // FIXME timestampweight comes from RP1210 INI file.
             // * self.timestampWeight
+            *0.001
         }
     }
+    
+    /// offset into array for common data (tx and not tx)
     fn offset(&self) -> usize {
         if self.tx {
             0
@@ -103,10 +106,11 @@ impl J1939Packet {
             5
         }
     }
+    
     pub fn echo(&self) -> bool {
         self.tx || self.packet.data[4] != 0
     }
-    //
+    
     pub fn source(&self) -> u8 {
         self.packet.data[4 + self.offset()]
     }

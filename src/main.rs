@@ -21,7 +21,7 @@ use rp1210::*;
 
 pub fn main() -> Result<()> {
     //create abstract CAN bus
-    let mut bus: MultiQueue<J1939Packet> = MultiQueue::new();
+    let bus: MultiQueue<J1939Packet> = MultiQueue::new();
 
     // log everything
     bus.log();
@@ -36,16 +36,14 @@ pub fn main() -> Result<()> {
     // test send
     for i in 1..120 {
         std::thread::sleep(std::time::Duration::from_millis(250));
-        let p = J1939Packet::new(0x18DA00F9, &[0x10, 0x01, i as u8]);
-        println!("sending {}", p);
-        rp1210.send(&p)?;
+        rp1210.send(&J1939Packet::new(0x18DA00FA, &[2, 0x10, 0x01, i as u8]))?;
     }
 
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
 
     // UI
-    create_application(table).run(&[]);
+    create_application(table, bus.clone()).run(&[]);
 
     Err(anyhow!("Application should not stop running."))
 }
@@ -59,7 +57,10 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
     number_col
 }
 
-fn create_application(table: HashMap<u16, J1939DARow>) -> Application {
+fn create_application(
+    table: HashMap<u16, J1939DARow>,
+    bus: MultiQueue<J1939Packet>,
+) -> Application {
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())
             .expect("failed to initialize GTK application");
