@@ -9,6 +9,7 @@ use gtk::*;
 use std::collections::HashMap;
 
 mod j1939;
+mod j1939da_ui;
 mod multiqueue;
 #[cfg_attr(not(target_os = "windows"), path = "sim.rs")]
 #[cfg_attr(target_os = "windows", path = "rp1210.rs")]
@@ -33,12 +34,6 @@ pub fn main() -> Result<()> {
     // select first device, J1939 and collect packets
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
 
-    // test send
-    for i in 1..120 {
-        std::thread::sleep(std::time::Duration::from_millis(250));
-        rp1210.send(&J1939Packet::new(0x18DA00FA, &[2, 0x10, 0x01, i as u8]))?;
-    }
-
     // load J1939DA
     let table = load_j1939da("da.xlsx")?;
 
@@ -48,19 +43,7 @@ pub fn main() -> Result<()> {
     Err(anyhow!("Application should not stop running."))
 }
 
-fn config_col(name: &str, id: i32) -> TreeViewColumn {
-    let number_col = TreeViewColumnBuilder::new().title(name).build();
-    let cell = CellRendererText::new();
-    //number_col.set_cell_func(cell, rand_cell);
-    number_col.pack_start(&cell, true);
-    number_col.add_attribute(&cell, "text", id);
-    number_col
-}
-
-fn create_application(
-    table: HashMap<u16, J1939DARow>,
-    bus: MultiQueue<J1939Packet>,
-) -> Application {
+fn create_application(spns: HashMap<u16, J1939DARow>, bus: MultiQueue<J1939Packet>) -> Application {
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())
             .expect("failed to initialize GTK application");
@@ -70,33 +53,25 @@ fn create_application(
         window.set_title("Second GTK+ Program");
         window.set_default_size(350, 70);
 
-        let list = ListStore::new(&[
-            String::static_type(),
-            String::static_type(),
-            String::static_type(),
-            String::static_type(),
-            String::static_type(),
-        ]);
-        for row in table.values() {
-            list.insert_with_values(
-                None,
-                &[0, 1, 2, 3, 4],
-                &[&row.pg_label, &row.sp_label, &row.unit, &"", &""],
-            );
-        }
+        let notebook = Notebook::new();
+        notebook.append_page(
+            &j1939da_ui::j1939da_log(&bus),
+            Some(&gtk::Label::new(Some(&"Log"))),
+        );
+        notebook.append_page(
+            &j1939da_ui::j1939da_table(&spns),
+            Some(&gtk::Label::new(Some(&"Table"))),
+        );
+        // notebook.append_page(
+        //     &j1939da_ui::j1939da_scanner(&spns, &bus),
+        //     Some(&gtk::Label::new(Some(&"Scanner"))),
+        // );
+        // notebook.append_page(
+        //     &j1939da_ui::j1939da_faults(&spns, &bus),
+        //     Some(&gtk::Label::new(Some(&"Faults"))),
+        // );
 
-        let view = TreeView::with_model(&list);
-
-        view.append_column(&config_col(&"PGN", 0));
-        view.append_column(&config_col(&"SPN", 1));
-        view.append_column(&config_col(&"Name", 2));
-        view.append_column(&config_col(&"Value", 3));
-        view.append_column(&config_col(&"Unit", 4));
-
-        let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-        sw.add(&view);
-        window.add(&sw);
-
+        window.add(&notebook);
         window.show_all();
     });
     application

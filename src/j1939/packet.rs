@@ -32,7 +32,7 @@ impl Display for J1939Packet {
             self.time(),
             self.header(),
             self.length(),
-            as_hex(&self.data()[..]),
+            self.data_str(),
             if self.echo() { " (TX)" } else { "" }
         )
     }
@@ -97,7 +97,7 @@ impl J1939Packet {
             *0.001
         }
     }
-    
+
     /// offset into array for common data (tx and not tx)
     fn offset(&self) -> usize {
         if self.tx {
@@ -106,11 +106,11 @@ impl J1939Packet {
             5
         }
     }
-    
+
     pub fn echo(&self) -> bool {
         self.tx || self.packet.data[4] != 0
     }
-    
+
     pub fn source(&self) -> u8 {
         self.packet.data[4 + self.offset()]
     }
@@ -133,6 +133,9 @@ impl J1939Packet {
             ((self.priority() as u32) << 18) | self.pgn(),
             self.source()
         )
+    }
+    pub fn data_str(&self) -> String {
+        as_hex(&self.data()[..])
     }
     pub fn data(&self) -> Vec<u8> {
         self.packet

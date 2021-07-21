@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use calamine::*;
 use serde::Deserialize;
 
@@ -73,7 +74,7 @@ pub struct J1939DARow {
     // #[serde(alias = "SP to PG Mapping Created or Modified Date")]
 }
 impl J1939DARow {}
-pub fn load_j1939da(file: &str) -> anyhow::Result<HashMap<u16, J1939DARow>> {
+pub fn load_j1939da(file: &str) -> Result<HashMap<u16, J1939DARow>> {
     let mut excel: Xlsx<_> = open_workbook(file)?;
     let range = excel
         .worksheet_range("SPs & PGs")
