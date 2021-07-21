@@ -25,7 +25,7 @@ pub fn main() -> Result<()> {
     let bus: MultiQueue<J1939Packet> = MultiQueue::new();
 
     // log everything
-    bus.log();
+    //bus.log();
 
     // load RP1210 driver and attach to bus
     //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;

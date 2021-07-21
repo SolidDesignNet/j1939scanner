@@ -22,11 +22,10 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
     number_col
 }
 
-pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
+pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     let list = ListStore::new(&[
-        String::static_type(),
-        String::static_type(),
-        String::static_type(),
+        f64::static_type(),
+        u32::static_type(),
         String::static_type(),
         String::static_type(),
     ]);
@@ -39,7 +38,11 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
 
     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
     let stream = bus.iter();
-    thread::spawn(move || stream.for_each(|p| tx.send(p).unwrap()));
+    let bus = bus.clone();
+    thread::spawn(move || loop {
+        bus.iter().for_each(|p| tx.send(p).unwrap());
+        std::thread::yield_now(); // FIXME this need to be automatic
+    });
     rx.attach(None, move |p| {
         list.insert_with_values(
             None,
@@ -59,10 +62,11 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
     sw.upcast()
 }
 
-pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
+pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
     let list = ListStore::new(&[
-        f64::static_type(),
-        u32::static_type(),
+        String::static_type(),
+        String::static_type(),
+        String::static_type(),
         String::static_type(),
         String::static_type(),
     ]);
