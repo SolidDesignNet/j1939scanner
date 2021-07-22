@@ -7,7 +7,7 @@ This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should pur
 Currently, the tool opens a hardcoded RP1210 device, collects packets onto a broadcast channel, logs them from another thread, loads the J1939DA and displays a table.
 
 Next steps:
-1. Packaging for distribution (neds to include GTK DLLs).
+1. Packaging for distribution (need to include GTK DLLs).
 2. Display a table of broadcast signals.
 3. J1939 table searching (because it's too big for Excel)
 4. Fault table.
