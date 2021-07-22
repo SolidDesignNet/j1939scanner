@@ -1,7 +1,10 @@
 use std::fmt::Display;
 use std::option::*;
 use std::sync::*;
+use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
+use std::time::Instant;
 
 /// Linked list data
 struct MqItem<T> {
@@ -21,6 +24,7 @@ pub struct MultiQueue<T> {
 /// Iterator
 struct MqIter<T> {
     head: MqNode<T>,
+    until: Instant,
 }
 
 impl<T> Iterator for MqIter<T>
@@ -29,12 +33,16 @@ where
 {
     type Item = T;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> {
-        let o = self
-            .head
-            .read()
-            .unwrap()
-            .as_ref()
-            .map(|i| (i.data.clone(), i.next.clone()));
+        let mut o = None;
+        while o.is_none() && Instant::now() < self.until {
+            thread::yield_now();
+            o = self
+                .head
+                .read()
+                .unwrap()
+                .as_ref()
+                .map(|i| (i.data.clone(), i.next.clone()));
+        }
         o.map(|clones| {
             self.head = clones.1;
             clones.0
@@ -51,10 +59,15 @@ where
             head: Arc::new(RwLock::new(Arc::new(RwLock::new(None)))),
         }
     }
-    pub fn iter(&self) -> impl Iterator<Item = T> {
+    pub fn iter_for(&self, duration: Duration) -> impl Iterator<Item = T> {
         MqIter {
             head: self.head.read().unwrap().clone(),
+            until: Instant::now() + duration,
         }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = T> {
+        self.iter_for(Duration::from_secs(0))
     }
 
     pub fn push(&mut self, item: T) {

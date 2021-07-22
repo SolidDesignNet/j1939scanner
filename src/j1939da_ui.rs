@@ -37,12 +37,8 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     view.append_column(&config_col(&"Data", 3));
 
     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let stream = bus.iter();
-    let bus = bus.clone();
-    thread::spawn(move || loop {
-        bus.iter().for_each(|p| tx.send(p).unwrap());
-        std::thread::yield_now(); // FIXME this need to be automatic
-    });
+    let stream = bus.iter_for(std::time::Duration::from_secs(60 * 60 * 24 * 30));
+    thread::spawn(move || stream.for_each(|p| tx.send(p).unwrap()));
     rx.attach(None, move |p| {
         list.insert_with_values(
             None,
