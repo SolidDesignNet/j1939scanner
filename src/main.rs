@@ -38,16 +38,14 @@ pub fn main() -> Result<()> {
     let table = load_j1939da("da.xlsx")?;
 
     // UI
-    create_application(table, bus.clone()).run(&[]);
+    create_application(table, bus.clone()).run();
 
     Err(anyhow!("Application should not stop running."))
 }
 
 fn create_application(spns: HashMap<u16, J1939DARow>, bus: MultiQueue<J1939Packet>) -> Application {
     let application =
-        Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())
-            .expect("failed to initialize GTK application");
-
+        Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default());
     application.connect_activate(move |app| {
         let window = ApplicationWindow::new(app);
         window.set_title("Second GTK+ Program");

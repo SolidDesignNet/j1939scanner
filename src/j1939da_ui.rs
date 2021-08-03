@@ -42,12 +42,11 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     rx.attach(None, move |p| {
         list.insert_with_values(
             None,
-            &[0, 1, 2, 3],
             &[
-                &p.time(),
-                &(p.data().len() as u32),
-                &p.header(),
-                &p.data_str(),
+                (0, &p.time()),
+                (1, &(p.data().len() as u32)),
+                (2, &p.header()),
+                (3, &p.data_str()),
             ],
         );
         glib::Continue(true)
@@ -78,8 +77,13 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
     for row in table.values() {
         list.insert_with_values(
             None,
-            &[0, 1, 2, 3, 4],
-            &[&row.pg_label, &row.sp_label, &row.unit, &"", &""],
+            &[
+                (0, &row.pg_label),
+                (1, &row.sp_label),
+                (2, &row.unit),
+                (3, &""),
+                (4, &""),
+            ],
         );
     }
 
