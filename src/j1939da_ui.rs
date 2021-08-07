@@ -57,7 +57,7 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     sw.upcast()
 }
 
-pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
+pub fn j1939da_table() -> gtk::Container {
     let list = ListStore::new(&[
         String::static_type(),
         String::static_type(),
@@ -73,46 +73,76 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
     view.append_column(&config_col(&"Value", 3));
     view.append_column(&config_col(&"Unit", 4));
 
-    for row in table.values() {
-        list.insert_with_values(
-            None,
-            &[
-                (0, &row.pg_label),
-                (1, &row.sp_label),
-                (2, &row.unit),
-                (3, &""),
-                (4, &""),
-            ],
-        );
-    }
+    let table = crate::j1939::load_j1939da("da.xlsx").unwrap();
+    refilter(&table, &list, &|row| true);
 
     let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    filter_box.pack_start(&gtk::Label::new(Some("SPN filter")), false, true, 0);
-    let spnDec = gtk::Entry::new();
-    spnDec.set_text(&"decimal");
-    filter_box.pack_start(&spnDec, false, true, 0);
-    let spnHex = gtk::Entry::new();
-    spnHex.set_text(&"hex");
-    filter_box.pack_start(&spnHex, false, true, 0);
+    filter_box.add(&gtk::Label::new(Some("SPN filter")));
+    filter_box.pack_start(
+        &gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"decimal")
+            .build(),
+        true,
+        true,
+        0,
+    );
+    let spn_hex = gtk::Entry::builder()
+        .width_chars(6)
+        .placeholder_text(&"hex")
+        .build();
+    let b = spn_hex.buffer();
+    spn_hex.connect_changed(move |_| {
+        let v = 123; // parse hex FIXME
+        refilter(&table, &list, &|row: &J1939DARow| {
+            row.spn.map_or_else(|| false, |s| s == v)
+        });
+    });
+    filter_box.pack_start(&spn_hex, true, true, 0);
 
     filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
-    let pgnDec = gtk::Entry::new();
-    pgnDec.set_text(&"decimal");
-    filter_box.pack_start(&pgnDec, false, true, 0);
-    let pgnHex = gtk::Entry::new();
-    pgnHex.set_text(&"hex");
-    filter_box.pack_start(&pgnHex, false, true, 0);
-
-    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vbox.set_spacing(6);
-    vbox.pack_start(&filter_box, false, true, 0);
-    vbox.pack_start(&view, true, true, 0);
+    filter_box.pack_start(
+        &gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"decimal")
+            .build(),
+        true,
+        true,
+        0,
+    );
+    let pgn_hex = gtk::Entry::builder()
+        .width_chars(6)
+        .placeholder_text(&"hex")
+        .build();
+    filter_box.pack_start(&pgn_hex, true, true, 0);
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-    sw.add(&vbox);
-    sw.upcast()
-}
+    sw.add(&view);
 
+    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vbox.pack_start(&filter_box, false, false, 4);
+    vbox.pack_start(&sw, true, true, 0);
+
+    vbox.upcast()
+}
+fn refilter(table: &HashMap<u16, J1939DARow>, list: &ListStore, f: &dyn Fn(&J1939DARow) -> bool) {
+    list.clear();
+    for row in table.values() {
+        println!("refilter");
+        if f(row) {
+            list.insert_with_values(
+                None,
+                &[
+                    (0, &row.pg_label),
+                    (1, &row.sp_label),
+                    (2, &row.unit),
+                    (3, &""),
+                    (4, &""),
+                ],
+            );
+        }
+    }
+}
 pub(crate) fn j1939da_scanner(
     table: &HashMap<u16, J1939DARow>,
     bus: &MultiQueue<J1939Packet>,

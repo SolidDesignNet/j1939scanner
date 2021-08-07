@@ -6,6 +6,14 @@ use serde::Deserialize;
 
 pub mod packet;
 
+fn bool_from_string<'de,D>(deserializer:D)->Result<Option<bool>,D::Error> where D: serde::Deserializer<'de>,{
+    match String::deserialize(deserializer)?.as_ref() {
+        "Yes" => Ok(Some(true)),
+        "No" => Ok(Some(false)),
+        other => Ok(None),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct J1939DARow {
     // #[serde(alias = "Revised")]
@@ -20,12 +28,21 @@ pub struct J1939DARow {
     #[serde(alias = "PG Acronym")]
     pub pg_acronym: Option<String>,
 
-    // #[serde(alias = "PG Description")]
-    // #[serde(alias = "EDP")]
-    // #[serde(alias = "DP")]
-    // #[serde(alias = "PF")]
-    // #[serde(alias = "PS")]
-    // #[serde(alias = "Multipacket")]
+     #[serde(alias = "PG Description")]
+    pub pg_description:Option<String>,
+
+     #[serde(alias = "EDP")]
+    pub edp: Option<u16>,
+     #[serde(alias = "DP")]
+    pub dp: Option<u16>,
+     #[serde(alias = "PF")]
+    pub pf: Option<u16>,
+     #[serde(alias = "PS")]
+    pub ps: Option<u16>,
+
+    // #[serde(alias = "Multipacket",deserialize_with="bool_from_string")]
+    pub multipacket: Option<bool>,
+
     #[serde(alias = "Transmission Rate")]
     pub transmission_rate: Option<String>,
 

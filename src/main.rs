@@ -34,16 +34,13 @@ pub fn main() -> Result<()> {
     // select first device, J1939 and collect packets
     rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
 
-    // load J1939DA
-    let table = load_j1939da("da.xlsx")?;
-
     // UI
-    create_application(table, bus.clone()).run();
+    create_application(bus.clone()).run();
 
     Err(anyhow!("Application should not stop running."))
 }
 
-fn create_application(spns: HashMap<u16, J1939DARow>, bus: MultiQueue<J1939Packet>) -> Application {
+fn create_application(bus: MultiQueue<J1939Packet>) -> Application {
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default());
     application.connect_activate(move |app| {
@@ -57,7 +54,7 @@ fn create_application(spns: HashMap<u16, J1939DARow>, bus: MultiQueue<J1939Packe
             Some(&gtk::Label::new(Some(&"Log"))),
         );
         notebook.append_page(
-            &j1939da_ui::j1939da_table(&spns),
+            &j1939da_ui::j1939da_table(),
             Some(&gtk::Label::new(Some(&"Table"))),
         );
         // notebook.append_page(
