@@ -67,7 +67,6 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
     ]);
 
     let view = TreeView::with_model(&list);
-
     view.append_column(&config_col(&"PGN", 0));
     view.append_column(&config_col(&"SPN", 1));
     view.append_column(&config_col(&"Name", 2));
@@ -87,8 +86,30 @@ pub fn j1939da_table(table: &HashMap<u16, J1939DARow>) -> gtk::Container {
         );
     }
 
+    let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    filter_box.pack_start(&gtk::Label::new(Some("SPN filter")), false, true, 0);
+    let spnDec = gtk::Entry::new();
+    spnDec.set_text(&"decimal");
+    filter_box.pack_start(&spnDec, false, true, 0);
+    let spnHex = gtk::Entry::new();
+    spnHex.set_text(&"hex");
+    filter_box.pack_start(&spnHex, false, true, 0);
+
+    filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
+    let pgnDec = gtk::Entry::new();
+    pgnDec.set_text(&"decimal");
+    filter_box.pack_start(&pgnDec, false, true, 0);
+    let pgnHex = gtk::Entry::new();
+    pgnHex.set_text(&"hex");
+    filter_box.pack_start(&pgnHex, false, true, 0);
+
+    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vbox.set_spacing(6);
+    vbox.pack_start(&filter_box, false, true, 0);
+    vbox.pack_start(&view, true, true, 0);
+
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-    sw.add(&view);
+    sw.add(&vbox);
     sw.upcast()
 }
 
