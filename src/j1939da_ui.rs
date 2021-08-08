@@ -16,12 +16,14 @@ use crate::j1939::J1939DARow;
 use crate::multiqueue::MultiQueue;
 
 fn config_col(name: &str, id: i32) -> TreeViewColumn {
-    let number_col = TreeViewColumnBuilder::new().title(name).build();
+    let col = TreeViewColumnBuilder::new().title(name).build();
     let cell = CellRendererText::new();
-    //number_col.set_cell_func(cell, rand_cell);
-    number_col.pack_start(&cell, true);
-    number_col.add_attribute(&cell, "text", id);
-    number_col
+    col.pack_start(&cell, true);
+    col.add_attribute(&cell, "text", id);
+    col.set_sort_indicator(true);
+    col.set_clickable(true);
+    col.set_sort_column_id(id);
+    col
 }
 
 pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
@@ -31,7 +33,7 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
         String::static_type(),
         String::static_type(),
     ]);
-    let view = TreeView::with_model(&list);
+    let view = TreeView::with_model(&TreeModelSort::new(&list));
 
     view.append_column(&config_col(&"Time", 0));
     view.append_column(&config_col(&"Size", 1));
@@ -59,29 +61,35 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     sw.upcast()
 }
 pub fn j1939da_table() -> gtk::Container {
-    let controller = Rc::new(Controller {
+    let controller = Rc::new(RefCell::new(Controller {
         table: crate::j1939::load_j1939da("da.xlsx").unwrap(),
         list: ListStore::new(&[
+            u32::static_type(),
+            String::static_type(),
+            u32::static_type(),
             String::static_type(),
             String::static_type(),
             String::static_type(),
-            String::static_type(),
-            String::static_type(),
+            f64::static_type(),
+            f64::static_type(),
         ]),
         spn_dec: "".to_string(),
         spn_hex: "".to_string(),
         pgn_dec: "".to_string(),
         pgn_hex: "".to_string(),
-    });
+    }));
 
-    let view = TreeView::with_model(&controller.list);
+    let view = TreeView::with_model(&controller.borrow().list);
     view.append_column(&config_col(&"PGN", 0));
-    view.append_column(&config_col(&"SPN", 1));
-    view.append_column(&config_col(&"Name", 2));
-    view.append_column(&config_col(&"Value", 3));
-    view.append_column(&config_col(&"Unit", 4));
+    view.append_column(&config_col(&"PGN (hex)", 1));
+    view.append_column(&config_col(&"SPN", 2));
+    view.append_column(&config_col(&"SPN (hex)", 3));
+    view.append_column(&config_col(&"Name", 4));
+    view.append_column(&config_col(&"Unit", 5));
+    view.append_column(&config_col(&"Scale", 6));
+    view.append_column(&config_col(&"Offest", 7));
 
-    controller.refilter();
+    controller.borrow().refilter();
 
     let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     {
@@ -94,8 +102,9 @@ pub fn j1939da_table() -> gtk::Container {
             .build();
         let c2 = controller.clone();
         spn_dec.connect_changed(move |e| {
-            c2.spn_dec = e.buffer().text();
-            c2.refilter();
+            let mut controller = c2.borrow_mut();
+            controller.spn_dec = e.buffer().text();
+            controller.refilter();
         });
         filter_box.pack_start(&spn_dec, true, true, 0);
 
@@ -105,8 +114,9 @@ pub fn j1939da_table() -> gtk::Container {
             .build();
         let c2 = controller.clone();
         spn_hex.connect_changed(move |e| {
-            c2.spn_hex = e.buffer().text();
-            c2.refilter();
+            let mut controller = c2.borrow_mut();
+            controller.spn_hex = e.buffer().text();
+            controller.refilter();
         });
         filter_box.pack_start(&spn_hex, true, true, 0);
     }
@@ -120,8 +130,9 @@ pub fn j1939da_table() -> gtk::Container {
         filter_box.pack_start(&pgn_dec, true, true, 0);
         let c2 = controller.clone();
         pgn_dec.connect_changed(move |e| {
-            c2.pgn_dec = e.buffer().text();
-            c2.refilter();
+            let mut controller = c2.borrow_mut();
+            controller.pgn_dec = e.buffer().text();
+            controller.refilter();
         });
 
         let pgn_hex = gtk::Entry::builder()
@@ -131,8 +142,9 @@ pub fn j1939da_table() -> gtk::Container {
         filter_box.pack_start(&pgn_hex, true, true, 0);
         let c2 = controller.clone();
         pgn_hex.connect_changed(move |e| {
-            c2.pgn_hex = e.buffer().text();
-            c2.refilter();
+            let mut controller = c2.borrow_mut();
+            controller.pgn_hex = e.buffer().text();
+            controller.refilter();
         });
     }
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
@@ -145,39 +157,60 @@ pub fn j1939da_table() -> gtk::Container {
     vbox.upcast()
 }
 struct Controller {
-    table: HashMap<u16, J1939DARow>,
+    table: HashMap<u32, J1939DARow>,
     list: ListStore,
     spn_dec: String,
     spn_hex: String,
     pgn_dec: String,
     pgn_hex: String,
 }
+
 impl Controller {
-    fn tokenize(str: &String) -> Vec<String> {
-        vec![]
-    }
     fn refilter(&self) {
-        println!("refilter");
-        let spns = tokenize(&self.spn_dec)
-            .map(|s| s.parse().ok())
-            .append(tokenize(self.spn_hex).map(|s| u16::from_str_radix(s.as_str(), 16).ok()));
+        let pat = |c: char| !c.is_ascii_hexdigit();
+
+        let spns: Vec<u32> = self
+            .spn_dec
+            .split(pat)
+            .map(|s| s.parse())
+            .chain(self.spn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
+            .filter(|r| r.is_ok())
+            .map(|r| r.unwrap())
+            .collect();
+        let pgns: Vec<u32> = self
+            .pgn_dec
+            .split(pat)
+            .map(|s| s.parse())
+            .chain(self.pgn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
+            .filter(|r| r.is_ok())
+            .map(|r| r.unwrap())
+            .collect();
+
+        println!("refilter spns: {:?} pgns: {:?}", spns, pgns);
         self.list.clear();
         for row in self.table.values() {
-            if todo!() {
+            if spns.is_empty() && pgns.is_empty()
+                || row.spn.filter(|n| spns.contains(&n)).is_some()
+                || row.pg.filter(|n| pgns.contains(&n)).is_some()
+            {
                 self.list.insert_with_values(
                     None,
                     &[
-                        (0, &row.spn.unwrap().to_string()),
-                        (1, &format!("{:x}", row.spn.unwrap())),
-                        (2, &row.sp_label),
-                        (3, &row.unit),
-                        (4, &""),
+                        (0, &row.pg.unwrap_or(0)),
+                        (1, &format!("{:04X}", row.pg.unwrap_or(0))),
+                        (2, &row.spn.unwrap_or(0)),
+                        (3, &format!("{:04X}", row.spn.unwrap_or(0))),
+                        (4, &row.sp_label),
+                        (5, &row.unit),
+                        (6, &row.scale.unwrap_or(1.0)),
+                        (6, &row.offset.unwrap_or(0.0)),
                     ],
                 );
             }
         }
     }
 }
+
 pub(crate) fn j1939da_scanner(
     table: &HashMap<u16, J1939DARow>,
     bus: &MultiQueue<J1939Packet>,

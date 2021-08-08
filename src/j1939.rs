@@ -6,7 +6,10 @@ use serde::Deserialize;
 
 pub mod packet;
 
-fn bool_from_string<'de,D>(deserializer:D)->Result<Option<bool>,D::Error> where D: serde::Deserializer<'de>,{
+fn bool_from_string<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
     match String::deserialize(deserializer)?.as_ref() {
         "Yes" => Ok(Some(true)),
         "No" => Ok(Some(false)),
@@ -21,24 +24,24 @@ pub struct J1939DARow {
     // #[serde(alias = "SP Revised")]
     // #[serde(alias = "SP to PG Map Revised")]
     #[serde(alias = "PGN")]
-    pub pg: Option<u16>,
+    pub pg: Option<u32>,
 
     #[serde(alias = "PG Label")]
     pub pg_label: Option<String>,
     #[serde(alias = "PG Acronym")]
     pub pg_acronym: Option<String>,
 
-     #[serde(alias = "PG Description")]
-    pub pg_description:Option<String>,
+    #[serde(alias = "PG Description")]
+    pub pg_description: Option<String>,
 
-     #[serde(alias = "EDP")]
-    pub edp: Option<u16>,
-     #[serde(alias = "DP")]
-    pub dp: Option<u16>,
-     #[serde(alias = "PF")]
-    pub pf: Option<u16>,
-     #[serde(alias = "PS")]
-    pub ps: Option<u16>,
+    #[serde(alias = "EDP")]
+    pub edp: Option<u32>,
+    #[serde(alias = "DP")]
+    pub dp: Option<u32>,
+    #[serde(alias = "PF")]
+    pub pf: Option<u32>,
+    #[serde(alias = "PS")]
+    pub ps: Option<u32>,
 
     // #[serde(alias = "Multipacket",deserialize_with="bool_from_string")]
     pub multipacket: Option<bool>,
@@ -54,7 +57,7 @@ pub struct J1939DARow {
     pub sp_start_bit: Option<String>,
 
     #[serde(alias = "SPN")]
-    pub spn: Option<u16>,
+    pub spn: Option<u32>,
 
     #[serde(alias = "SP Label")]
     pub sp_label: Option<String>,
@@ -91,7 +94,7 @@ pub struct J1939DARow {
     // #[serde(alias = "SP to PG Mapping Created or Modified Date")]
 }
 impl J1939DARow {}
-pub fn load_j1939da(file: &str) -> Result<HashMap<u16, J1939DARow>> {
+pub fn load_j1939da(file: &str) -> Result<HashMap<u32, J1939DARow>> {
     let mut excel: Xlsx<_> = open_workbook(file)?;
     let range = excel
         .worksheet_range("SPs & PGs")
