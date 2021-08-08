@@ -6,13 +6,6 @@ This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should pur
 
 Currently, the tool opens a hardcoded RP1210 device, collects packets onto a broadcast channel, logs them from another thread, loads the J1939DA and displays a table with searching and sorting.
 
-Next steps:
-1. Allow user to select RP1210 driver and save in preferences.
-2. Allow user to select J1939DA location and save in preferences.
-3. Make initial release build.
-4. Fault table.
-5. On Request signals.
-
 ## Building
 j1939scanner uses RP1210 as the CAN adapter.  RP1210 requires 32 bit.
 
