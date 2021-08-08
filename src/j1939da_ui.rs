@@ -6,7 +6,9 @@ extern crate gtk;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::thread;
 
 use crate::j1939::packet::J1939Packet;
@@ -56,66 +58,83 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     sw.add(&view);
     sw.upcast()
 }
-
 pub fn j1939da_table() -> gtk::Container {
-    let list = ListStore::new(&[
-        String::static_type(),
-        String::static_type(),
-        String::static_type(),
-        String::static_type(),
-        String::static_type(),
-    ]);
+    let controller = Rc::new(Controller {
+        table: crate::j1939::load_j1939da("da.xlsx").unwrap(),
+        list: ListStore::new(&[
+            String::static_type(),
+            String::static_type(),
+            String::static_type(),
+            String::static_type(),
+            String::static_type(),
+        ]),
+        spn_dec: "".to_string(),
+        spn_hex: "".to_string(),
+        pgn_dec: "".to_string(),
+        pgn_hex: "".to_string(),
+    });
 
-    let view = TreeView::with_model(&list);
+    let view = TreeView::with_model(&controller.list);
     view.append_column(&config_col(&"PGN", 0));
     view.append_column(&config_col(&"SPN", 1));
     view.append_column(&config_col(&"Name", 2));
     view.append_column(&config_col(&"Value", 3));
     view.append_column(&config_col(&"Unit", 4));
 
-    let table = crate::j1939::load_j1939da("da.xlsx").unwrap();
-    refilter(&table, &list, &|row| true);
+    controller.refilter();
 
     let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    filter_box.add(&gtk::Label::new(Some("SPN filter")));
-    filter_box.pack_start(
-        &gtk::Entry::builder()
+    {
+        // SPN filters
+        filter_box.add(&gtk::Label::new(Some("SPN filter")));
+
+        let spn_dec = gtk::Entry::builder()
             .width_chars(6)
             .placeholder_text(&"decimal")
-            .build(),
-        true,
-        true,
-        0,
-    );
-    let spn_hex = gtk::Entry::builder()
-        .width_chars(6)
-        .placeholder_text(&"hex")
-        .build();
-    let b = spn_hex.buffer();
-    spn_hex.connect_changed(move |_| {
-        let v = 123; // parse hex FIXME
-        refilter(&table, &list, &|row: &J1939DARow| {
-            row.spn.map_or_else(|| false, |s| s == v)
+            .build();
+        let c2 = controller.clone();
+        spn_dec.connect_changed(move |e| {
+            c2.spn_dec = e.buffer().text();
+            c2.refilter();
         });
-    });
-    filter_box.pack_start(&spn_hex, true, true, 0);
+        filter_box.pack_start(&spn_dec, true, true, 0);
 
-    filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
-    filter_box.pack_start(
-        &gtk::Entry::builder()
+        let spn_hex = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"hex")
+            .build();
+        let c2 = controller.clone();
+        spn_hex.connect_changed(move |e| {
+            c2.spn_hex = e.buffer().text();
+            c2.refilter();
+        });
+        filter_box.pack_start(&spn_hex, true, true, 0);
+    }
+    {
+        // PGN filters
+        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
+        let pgn_dec = gtk::Entry::builder()
             .width_chars(6)
             .placeholder_text(&"decimal")
-            .build(),
-        true,
-        true,
-        0,
-    );
-    let pgn_hex = gtk::Entry::builder()
-        .width_chars(6)
-        .placeholder_text(&"hex")
-        .build();
-    filter_box.pack_start(&pgn_hex, true, true, 0);
+            .build();
+        filter_box.pack_start(&pgn_dec, true, true, 0);
+        let c2 = controller.clone();
+        pgn_dec.connect_changed(move |e| {
+            c2.pgn_dec = e.buffer().text();
+            c2.refilter();
+        });
 
+        let pgn_hex = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"hex")
+            .build();
+        filter_box.pack_start(&pgn_hex, true, true, 0);
+        let c2 = controller.clone();
+        pgn_hex.connect_changed(move |e| {
+            c2.pgn_hex = e.buffer().text();
+            c2.refilter();
+        });
+    }
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
 
@@ -125,21 +144,37 @@ pub fn j1939da_table() -> gtk::Container {
 
     vbox.upcast()
 }
-fn refilter(table: &HashMap<u16, J1939DARow>, list: &ListStore, f: &dyn Fn(&J1939DARow) -> bool) {
-    list.clear();
-    for row in table.values() {
+struct Controller {
+    table: HashMap<u16, J1939DARow>,
+    list: ListStore,
+    spn_dec: String,
+    spn_hex: String,
+    pgn_dec: String,
+    pgn_hex: String,
+}
+impl Controller {
+    fn tokenize(str: &String) -> Vec<String> {
+        vec![]
+    }
+    fn refilter(&self) {
         println!("refilter");
-        if f(row) {
-            list.insert_with_values(
-                None,
-                &[
-                    (0, &row.pg_label),
-                    (1, &row.sp_label),
-                    (2, &row.unit),
-                    (3, &""),
-                    (4, &""),
-                ],
-            );
+        let spns = tokenize(&self.spn_dec)
+            .map(|s| s.parse().ok())
+            .append(tokenize(self.spn_hex).map(|s| u16::from_str_radix(s.as_str(), 16).ok()));
+        self.list.clear();
+        for row in self.table.values() {
+            if todo!() {
+                self.list.insert_with_values(
+                    None,
+                    &[
+                        (0, &row.spn.unwrap().to_string()),
+                        (1, &format!("{:x}", row.spn.unwrap())),
+                        (2, &row.sp_label),
+                        (3, &row.unit),
+                        (4, &""),
+                    ],
+                );
+            }
         }
     }
 }
