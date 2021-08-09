@@ -156,6 +156,7 @@ pub fn j1939da_table() -> gtk::Container {
 
     vbox.upcast()
 }
+
 struct Controller {
     table: HashMap<u32, J1939DARow>,
     list: ListStore,

@@ -6,7 +6,6 @@ use anyhow::*;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
-use std::collections::HashMap;
 
 mod j1939;
 mod j1939da_ui;
@@ -16,7 +15,6 @@ mod multiqueue;
 mod rp1210;
 
 use j1939::packet::*;
-use j1939::*;
 use multiqueue::*;
 use rp1210::*;
 
@@ -27,22 +25,24 @@ pub fn main() -> Result<()> {
     // log everything
     //bus.log();
 
-    // load RP1210 driver and attach to bus
-    //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
-    let mut rp1210 = Rp1210::new("NXULNK32", bus.clone())?;
-
-    // select first device, J1939 and collect packets
-    rp1210.run(1, "J1939:Baud=Auto", 0xF9)?;
-
     // UI
     create_application(bus.clone()).run();
 
     Err(anyhow!("Application should not stop running."))
 }
 
+fn loadAdapter(id: &str, bus: MultiQueue<J1939Packet>) -> Result<i16> {
+    // load RP1210 driver and attach to bus
+    //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
+    let mut rp1210 = Rp1210::new(id, bus.clone())?;
+
+    // select first device, J1939 and collect packets
+    rp1210.run(1, "J1939:Baud=Auto", 0xF9)
+}
 fn create_application(bus: MultiQueue<J1939Packet>) -> Application {
     let application =
         Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default());
+
     application.connect_activate(move |app| {
         let window = ApplicationWindow::new(app);
         window.set_title("Second GTK+ Program");
@@ -66,8 +66,32 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Application {
         //     Some(&gtk::Label::new(Some(&"Faults"))),
         // );
 
-        window.add(&notebook);
+        let menu = MenuItem::with_label("RP1210");
+        menu.set_submenu(Some(&create_rp1210_menu()));
+
+        let menubar = MenuBar::new();
+        menubar.append(&menu);
+
+        let vbox = Box::builder().orientation(Orientation::Vertical).build();
+        vbox.pack_start(&menubar, false, false, 0);
+        vbox.pack_end(&notebook, true, true, 0);
+        window.add(&vbox);
         window.show_all();
     });
     application
+}
+
+fn create_rp1210_menu() -> Menu {
+    let bmenu = Menu::new();
+
+    
+    let boom = MenuItem::with_label("Boom!");
+    boom.connect_activate(move |_| println!("BOOM!"));
+    bmenu.add(&boom);
+
+    let boom = MenuItem::with_label("Boom2!");
+    boom.connect_activate(move |_| println!("BOOM2!"));
+    bmenu.add(&boom);
+
+    bmenu
 }

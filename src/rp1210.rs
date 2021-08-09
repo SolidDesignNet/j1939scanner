@@ -43,7 +43,15 @@ pub struct Rp1210 {
 
     */
 }
+pub struct Rp1210Dev {
+    id: String,
+    name: String,
+    manufacturer: String,
+}
 impl Rp1210 {
+    pub fn scan() -> Vec<Rp1210Dev> {
+        todo!()
+    }
     //NULN2R32
     pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = unsafe {
