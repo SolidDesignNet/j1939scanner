@@ -43,14 +43,71 @@ pub struct Rp1210 {
 
     */
 }
+#[derive(Debug)]
 pub struct Rp1210Dev {
-    id: String,
+    id: u32,
     name: String,
-    manufacturer: String,
+    description: String,
 }
+#[derive(Debug)]
+pub struct Rp1210Prod {
+    id: String,
+    devices: Vec<Rp1210Dev>,
+}
+
+pub fn list_all_products() -> Vec<Rp1210Prod> {
+    ini::ini!("c:\\Windows\\RP121032.ini")["RP1210Support"]["APIImplementations"]
+        .clone()
+        .unwrap()
+        .split(",")
+        .map(|s| {
+            let id = s.to_string();
+            let devices = list_devices_for_prod(&id);
+            Rp1210Prod { id, devices }
+        })
+        .collect()
+}
+
+fn list_devices_for_prod(id: &str) -> Vec<Rp1210Dev> {
+    println!("prod: {}", id);
+    let ini = ini::ini!(&format!("c:\\Windows\\{}", id));
+    // find device IDs for J1939
+    let j1939_devices: Vec<String> = ini
+        .iter()
+        .filter(|(k, t)| {
+            k.starts_with("ProtocolInformation") && t["ProtocolString"] == Some("J1939".to_string())
+        })
+        .flat_map(|(k, t)| {
+            println!("    :   {}", k);
+            t["Devices"]
+                .clone()
+                .map_or(vec![], |s| s.split(",").map(|t| t.to_string()).collect())
+                .into_iter()
+        })
+        .collect();
+    // find the specified devices
+    ini.iter()
+        .filter(|(k, t)| {
+            k.starts_with("DeviceInformation")
+                && j1939_devices.contains(&t["DeviceId"].clone().unwrap_or("X".to_string()))
+        })
+        .map(|(_, e)| Rp1210Dev {
+            id: e["DeviceID"]
+                .clone()
+                .unwrap_or("0".to_string())
+                .parse()
+                .unwrap(),
+            name: e["DeviceName"].clone().unwrap_or("Unknown".to_string()),
+            description: e["DeviceDescription"]
+                .clone()
+                .unwrap_or("Unknown".to_string()),
+        })
+        .collect()
+}
+
 impl Rp1210 {
-    pub fn scan() -> Vec<Rp1210Dev> {
-        todo!()
+    pub fn scan() -> Vec<Rp1210Prod> {
+        list_all_products()
     }
     //NULN2R32
     pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
@@ -151,5 +208,16 @@ impl Rp1210 {
     pub fn send(&self, packet: &J1939Packet) -> Result<i16> {
         let buf = &packet.packet.data;
         self.verify_return(unsafe { (self.send_fn)(self.id, buf.as_ptr(), buf.len() as i16, 0, 0) })
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple() {
+        for p in list_all_products() {
+            println!("{:?}", p);
+        }
     }
 }
