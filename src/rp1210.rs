@@ -46,9 +46,6 @@ pub struct Rp1210 {
 
 #[allow(dead_code)]
 impl Rp1210 {
-    pub fn scan() -> Result<Vec<Rp1210Prod>> {
-        list_all_products()
-    }
     //NULN2R32
     pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
         let rp1210 = unsafe {
@@ -148,16 +145,5 @@ impl Rp1210 {
     pub fn send(&self, packet: &J1939Packet) -> Result<i16> {
         let buf = &packet.packet.data;
         self.verify_return(unsafe { (self.send_fn)(self.id, buf.as_ptr(), buf.len() as i16, 0, 0) })
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn simple() {
-        for p in list_all_products() {
-            println!("{:?}", p);
-        }
     }
 }
