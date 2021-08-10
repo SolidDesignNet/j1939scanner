@@ -9,6 +9,7 @@ serde = { version = "1", features = ["derive"] }
 calamine = "0.18.0"
 anyhow = "1.0.42"
 libloading = "0.7.0"
+rust-ini="0.17.0"
 
 [dependencies.gtk]
 version = "0.14.0"

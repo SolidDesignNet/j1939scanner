@@ -13,13 +13,14 @@ mod multiqueue;
 #[cfg_attr(not(target_os = "windows"), path = "sim.rs")]
 #[cfg_attr(target_os = "windows", path = "rp1210.rs")]
 mod rp1210;
+mod rp1210_parsing;
 
 use j1939::packet::*;
 use multiqueue::*;
 use rp1210::*;
 
 pub fn main() -> Result<()> {
-    for p in list_all_products()? {
+    for p in rp1210_parsing::list_all_products()? {
         println!("{}", p.id);
         for d in p.devices {
             println!("  {:?}", d);
