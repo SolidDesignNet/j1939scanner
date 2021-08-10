@@ -50,6 +50,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<T> MultiQueue<T>
 where
     T: Clone + Sync + Send,
@@ -83,6 +84,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<T> MultiQueue<T>
 where
     T: Clone + Sync + Send + Display + 'static,

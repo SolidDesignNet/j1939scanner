@@ -45,68 +45,73 @@ pub struct Rp1210 {
 }
 #[derive(Debug)]
 pub struct Rp1210Dev {
-    id: u32,
-    name: String,
-    description: String,
+    pub id: u32,
+    pub name: String,
+    pub description: String,
 }
 #[derive(Debug)]
 pub struct Rp1210Prod {
-    id: String,
-    devices: Vec<Rp1210Dev>,
+    pub id: String,
+    pub devices: Vec<Rp1210Dev>,
 }
 
-pub fn list_all_products() -> Vec<Rp1210Prod> {
-    ini::ini!("c:\\Windows\\RP121032.ini")["RP1210Support"]["APIImplementations"]
-        .clone()
+pub fn list_all_products() -> Result<Vec<Rp1210Prod>> {
+    Ok(ini::Ini::load_from_file("c:\\Windows\\RP121032.ini")?
+        .get_from(Some("RP1210Support"), "APIImplementations")
         .unwrap()
         .split(",")
         .map(|s| {
             let id = s.to_string();
-            let devices = list_devices_for_prod(&id);
+            let devices = list_devices_for_prod(&id).unwrap();
             Rp1210Prod { id, devices }
         })
-        .collect()
+        .collect())
 }
 
-fn list_devices_for_prod(id: &str) -> Vec<Rp1210Dev> {
-    println!("prod: {}", id);
-    let ini = ini::ini!(&format!("c:\\Windows\\{}", id));
+fn list_devices_for_prod(id: &str) -> Result<Vec<Rp1210Dev>> {
+    let ini = ini::Ini::load_from_file(&format!("c:\\Windows\\{}.ini", id))?;
+
     // find device IDs for J1939
-    let j1939_devices: Vec<String> = ini
+    let j1939_devices: Vec<&str> = ini
         .iter()
-        .filter(|(k, t)| {
-            k.starts_with("ProtocolInformation") && t["ProtocolString"] == Some("J1939".to_string())
+        // find J1939 protocol description
+        .filter(|(section, properties)| {
+            section.unwrap().starts_with("ProtocolInformation")
+                && properties.get("ProtocolString") == Some("J1939")
         })
-        .flat_map(|(k, t)| {
-            println!("    :   {}", k);
-            t["Devices"]
-                .clone()
-                .map_or(vec![], |s| s.split(",").map(|t| t.to_string()).collect())
+        // which device ids support J1939?
+        .flat_map(|(_, properties)| {
+            properties
+                .get("Devices")
+                .map_or(vec![], |s| s.split(",").collect())
                 .into_iter()
         })
         .collect();
+
     // find the specified devices
-    ini.iter()
-        .filter(|(k, t)| {
-            k.starts_with("DeviceInformation")
-                && j1939_devices.contains(&t["DeviceId"].clone().unwrap_or("X".to_string()))
+    Ok(ini
+        .iter()
+        .filter(|(section, properties)| {
+            section.unwrap().starts_with("DeviceInformation")
+                && j1939_devices.contains(&properties.get("DeviceID").unwrap_or("X"))
         })
-        .map(|(_, e)| Rp1210Dev {
-            id: e["DeviceID"]
-                .clone()
-                .unwrap_or("0".to_string())
-                .parse()
-                .unwrap(),
-            name: e["DeviceName"].clone().unwrap_or("Unknown".to_string()),
-            description: e["DeviceDescription"]
-                .clone()
-                .unwrap_or("Unknown".to_string()),
+        .map(|(_, properties)| Rp1210Dev {
+            id: properties.get("DeviceId").unwrap_or("0").parse().unwrap(),
+            name: properties
+                .get("DeviceName")
+                .unwrap_or("Unknown")
+                .to_string(),
+            description: properties
+                .get("DeviceDescription")
+                .unwrap_or("Unknown")
+                .to_string(),
         })
-        .collect()
+        .collect())
 }
 
+#[allow(dead_code)]
 impl Rp1210 {
-    pub fn scan() -> Vec<Rp1210Prod> {
+    pub fn scan() -> Result<Vec<Rp1210Prod>> {
         list_all_products()
     }
     //NULN2R32

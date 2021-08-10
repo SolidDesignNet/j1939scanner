@@ -211,17 +211,3 @@ impl Controller {
         }
     }
 }
-
-pub(crate) fn j1939da_scanner(
-    table: &HashMap<u16, J1939DARow>,
-    bus: &MultiQueue<J1939Packet>,
-) -> gtk::Container {
-    todo!()
-}
-
-pub(crate) fn j1939da_faults(
-    table: &HashMap<u16, J1939DARow>,
-    bus: &MultiQueue<J1939Packet>,
-) -> gtk::Container {
-    todo!()
-}

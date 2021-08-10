@@ -19,6 +19,13 @@ use multiqueue::*;
 use rp1210::*;
 
 pub fn main() -> Result<()> {
+    for p in list_all_products()? {
+        println!("{}", p.id);
+        for d in p.devices {
+            println!("  {:?}", d);
+        }
+    }
+
     //create abstract CAN bus
     let bus: MultiQueue<J1939Packet> = MultiQueue::new();
 
@@ -31,7 +38,7 @@ pub fn main() -> Result<()> {
     Err(anyhow!("Application should not stop running."))
 }
 
-fn loadAdapter(id: &str, bus: MultiQueue<J1939Packet>) -> Result<i16> {
+fn load_adapter(id: &str, bus: MultiQueue<J1939Packet>) -> Result<i16> {
     // load RP1210 driver and attach to bus
     //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
     let mut rp1210 = Rp1210::new(id, bus.clone())?;
@@ -84,7 +91,6 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Application {
 fn create_rp1210_menu() -> Menu {
     let bmenu = Menu::new();
 
-    
     let boom = MenuItem::with_label("Boom!");
     boom.connect_activate(move |_| println!("BOOM!"));
     bmenu.add(&boom);

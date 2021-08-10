@@ -56,6 +56,7 @@ impl Display for Packet {
     }
 }
 impl Packet {
+    #[allow(dead_code)]
     pub fn new_rp1210(data: &[u8]) -> Packet {
         Packet {
             data: data.to_vec(),
@@ -63,6 +64,7 @@ impl Packet {
     }
 }
 impl J1939Packet {
+    #[allow(dead_code)]
     pub fn new_rp1210(data: &[u8]) -> J1939Packet {
         J1939Packet {
             packet: Packet::new_rp1210(data),
@@ -73,6 +75,7 @@ impl J1939Packet {
         self.packet.data.len() - 6 - self.offset()
     }
 
+    #[allow(dead_code)]
     pub fn new(head: u32, data: &[u8]) -> J1939Packet {
         let pgn = 0xFFFF & (head >> 8);
         let da = if pgn < 0xF000 { 0xFF & pgn } else { 0 } as u8;
