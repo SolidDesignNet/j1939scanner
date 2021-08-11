@@ -4,7 +4,7 @@ This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should pur
 
 **STATUS: pre-initial release.  I'm still getting the foundation down.**
 
-Currently, the tool opens a hardcoded RP1210 device, collects packets onto a broadcast channel, logs them from another thread, loads the J1939DA and displays a table with searching and sorting.
+Currently, the tool menu will allow you to select an adapter (once!), collects packets onto a broadcast channel, logs them from another thread, loads the J1939DA and displays a table of the J1939DS with searching and sorting.
 
 ## Building
 j1939scanner uses RP1210 as the CAN adapter.  RP1210 requires 32 bit.
