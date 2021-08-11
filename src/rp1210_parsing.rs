@@ -2,7 +2,7 @@ use anyhow::*;
 
 #[derive(Debug)]
 pub struct Rp1210Dev {
-    pub id: u32,
+    pub id: i16,
     pub name: String,
     pub description: String,
 }

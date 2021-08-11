@@ -13,7 +13,7 @@ where
     match String::deserialize(deserializer)?.as_ref() {
         "Yes" => Ok(Some(true)),
         "No" => Ok(Some(false)),
-        other => Ok(None),
+        _other => Ok(None),
     }
 }
 
@@ -43,7 +43,7 @@ pub struct J1939DARow {
     #[serde(alias = "PS")]
     pub ps: Option<u32>,
 
-    // #[serde(alias = "Multipacket",deserialize_with="bool_from_string")]
+    #[serde(alias = "Multipacket", deserialize_with = "bool_from_string")]
     pub multipacket: Option<bool>,
 
     #[serde(alias = "Transmission Rate")]
