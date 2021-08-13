@@ -1,6 +1,8 @@
 extern crate gio;
 extern crate gtk;
 
+use std::sync::{Arc, Mutex};
+
 // yikes. Comment out the next line, then try to make sense of that error message!
 use anyhow::*;
 use gio::prelude::*;
@@ -30,15 +32,6 @@ pub fn main() -> Result<()> {
     create_application(bus.clone())?.run();
 
     Err(anyhow!("Application should not stop running."))
-}
-
-fn load_adapter(prod: &str, id: i16, bus: MultiQueue<J1939Packet>) -> Result<i16> {
-    // load RP1210 driver and attach to bus
-    //    let mut rp1210 = Rp1210::new("NULN2R32", bus.clone())?;
-    let mut rp1210 = Rp1210::new(prod, bus)?;
-
-    // select first device, J1939 and collect packets
-    rp1210.run(id, "J1939:Baud=Auto", 0xF9)
 }
 fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
     let application =
@@ -84,6 +77,7 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
 fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
     let rp1210_menu = Menu::new();
 
+    let closer: Arc<Mutex<Option<std::boxed::Box<dyn Fn() -> ()>>>> = Arc::new(Mutex::new(None));
     for product in rp1210_parsing::list_all_products()? {
         let product_menu_item = MenuItem::with_label(&product.id);
         rp1210_menu.append(&product_menu_item);
@@ -92,8 +86,14 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
             let device_menu_item = MenuItem::with_label(&device.description);
             let pid = product.id.clone();
             let bus = bus.clone();
+            let closer = closer.clone();
             device_menu_item.connect_activate(move |_| {
-                load_adapter(&pid, device.id, bus.clone()).unwrap();
+                let mut closer = closer.lock().unwrap();
+                // execute close if there is a prior rp1210 adapter
+                closer.as_ref().map(|a| a());
+                // create a new adapter
+                let rp1210 = Rp1210::new(&pid, bus.clone()).unwrap();
+                *closer = Some(rp1210.run(device.id, "J1939:Baud=Auto", 0xF9).ok().unwrap());
             });
             product_menu.add(&device_menu_item);
         }

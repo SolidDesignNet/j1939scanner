@@ -95,6 +95,7 @@ pub struct J1939DARow {
 }
 impl J1939DARow {}
 pub fn load_j1939da(file: &str) -> Result<HashMap<u32, J1939DARow>> {
+    let start = std::time::Instant::now();
     let mut excel: Xlsx<_> = open_workbook(file)?;
     let range = excel
         .worksheet_range("SPs & PGs")
@@ -114,5 +115,6 @@ pub fn load_j1939da(file: &str) -> Result<HashMap<u32, J1939DARow>> {
             }
         }
     }
+    println!("J1939DA parsing {} ms", start.elapsed().as_millis());
     Ok(map)
 }

@@ -4,12 +4,24 @@ use std::ffi::CString;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::*;
 use std::sync::*;
+use std::time::Duration;
 
 use crate::j1939::packet::*;
 use crate::multiqueue::*;
 use libloading::os::windows::Symbol as WinSymbol;
 
 pub const PACKET_SIZE: usize = 1600;
+
+fn log<F, T>(msg: &str, mut f: F) -> T
+where
+    F: FnMut() -> T,
+{
+    let start = std::time::Instant::now();
+    println!("{} start", msg);
+    let rtn = f();
+    println!("{} done {:?}", msg, start.elapsed());
+    rtn
+}
 
 // TODO: break out library calls into private struct
 
@@ -46,9 +58,8 @@ pub struct Rp1210 {
 
 #[allow(dead_code)]
 impl Rp1210 {
-    //NULN2R32
     pub fn new(id: &str, bus: MultiQueue<J1939Packet>) -> Result<Rp1210> {
-        let rp1210 = unsafe {
+        Ok(unsafe {
             let lib = Library::new(id.to_string())?;
             let client_connect: Symbol<ClientConnectType> =
                 (&lib).get(b"RP1210_ClientConnect\0").unwrap();
@@ -67,29 +78,34 @@ impl Rp1210 {
                 get_error_fn: get_error.into_raw(),
                 lib,
             }
-        };
-        Ok(rp1210)
+        })
     }
     // load DLL, make connection and background thread to read all packets into queue
-    pub fn run(&mut self, dev: i16, connection: &str, address: u8) -> Result<i16> {
-        let running = self.running.clone();
-        let mut bus = self.bus.clone();
-        let read = *self.read_fn;
-        let rtn = self.client_connect(dev, connection, address);
-        if let Ok(id) = rtn {
-            std::thread::spawn(move || {
-                running.store(true, Relaxed);
-                let mut buf: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
-                while running.load(Relaxed) {
-                    let p = unsafe {
-                        let size = read(id, buf.as_mut_ptr(), PACKET_SIZE as i16, 1) as usize;
-                        J1939Packet::new_rp1210(&buf[0..size])
-                    };
-                    bus.push(p);
+    pub fn run(mut self, dev: i16, connection: &str, address: u8) -> Result<Box<dyn Fn() -> ()>> {
+        self.running.store(true, Relaxed);
+        let stopper = self.running.clone();
+        let id = self.client_connect(dev, connection, address)?;
+        std::thread::spawn(move || {
+            let mut buf: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+            while self.running.load(Relaxed) {
+                let size = unsafe { (*self.read_fn)(id, buf.as_mut_ptr(), PACKET_SIZE as i16, 1) };
+                if size >= 0 {
+                    let packet = J1939Packet::new_rp1210(&buf[0..size as usize]);
+                    self.bus.push(packet)
+                } else {
+                    if size < 0 {
+                        // read error
+                        let code = -size;
+                        let size = unsafe { (*self.get_error_fn)(code, buf.as_mut_ptr()) } as usize;
+                        let msg = String::from_utf8_lossy(&buf[0..size]).to_string();
+                        println!("RP1210 error: {}: {:?}", code, msg);
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-            });
-        };
-        rtn
+            }
+        });
+        let s2 = stopper.clone();
+        Ok(Box::new(move || s2.store(false, Relaxed)))
     }
     pub fn stop(&self) -> Result<()> {
         self.running.store(false, Relaxed);
@@ -102,10 +118,8 @@ impl Rp1210 {
     }
     fn get_error(&self, code: i16) -> Result<String> {
         let mut buf: [u8; 1024] = [0; 1024];
-        unsafe {
-            let size = (self.get_error_fn)(code, buf.as_mut_ptr()) as usize;
-            Ok(String::from_utf8_lossy(&buf[0..size]).to_string())
-        }
+        let size = unsafe { (self.get_error_fn)(code, buf.as_mut_ptr()) } as usize;
+        Ok(String::from_utf8_lossy(&buf[0..size]).to_string())
     }
     fn verify_return(&self, v: i16) -> Result<i16> {
         if v < 0 {
@@ -124,6 +138,7 @@ impl Rp1210 {
         let id = unsafe {
             (self.client_connect_fn)(0, dev_id, c_to_print.as_ptr() as *const char, 0, 0, 0)
         };
+        println!("client_connect id {}", id);
         self.id = self.verify_return(id)?;
         self.send_command(
             /*CMD_PROTECT_J1939_ADDRESS*/ 19,
