@@ -18,6 +18,7 @@ use crate::multiqueue::MultiQueue;
 fn config_col(name: &str, id: i32) -> TreeViewColumn {
     let col = TreeViewColumnBuilder::new().title(name).build();
     let cell = CellRendererText::new();
+    cell.set_font(Some("monospace"));
     col.pack_start(&cell, true);
     col.add_attribute(&cell, "text", id);
     col.set_sort_indicator(true);
@@ -55,6 +56,8 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
         );
         glib::Continue(true)
     });
+
+    view.selection().set_mode(SelectionMode::Multiple);
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
@@ -147,6 +150,9 @@ pub fn j1939da_table() -> gtk::Container {
             controller.refilter();
         });
     }
+
+    view.selection().set_mode(SelectionMode::Multiple);
+
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
 

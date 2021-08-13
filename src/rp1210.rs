@@ -104,8 +104,7 @@ impl Rp1210 {
                 }
             }
         });
-        let s2 = stopper.clone();
-        Ok(Box::new(move || s2.store(false, Relaxed)))
+        Ok(Box::new(move || stopper.store(false, Relaxed)))
     }
     pub fn stop(&self) -> Result<()> {
         self.running.store(false, Relaxed);
@@ -152,10 +151,6 @@ impl Rp1210 {
         )?;
         self.send_command(/*CMD_SET_ALL_FILTERS_STATES_TO_PASS*/ 3, vec![])?;
         Ok(id)
-    }
-    pub fn unload(self) -> anyhow::Result<()> {
-        self.lib.close()?;
-        Ok(())
     }
     pub fn send(&self, packet: &J1939Packet) -> Result<i16> {
         let buf = &packet.packet.data;

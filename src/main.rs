@@ -34,11 +34,10 @@ pub fn main() -> Result<()> {
     Err(anyhow!("Application should not stop running."))
 }
 fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
-    let application =
-        Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default());
+    let application = Application::new(Some("net.soliddesign.j1939dascanner"), Default::default());
     application.connect_activate(move |app| {
         let window = ApplicationWindow::new(app);
-        window.set_title("Second GTK+ Program");
+        window.set_title("J1939DA Tool - Solid Design");
         window.set_default_size(800, 600);
 
         let notebook = Notebook::new();
