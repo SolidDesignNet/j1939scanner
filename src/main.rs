@@ -33,6 +33,7 @@ pub fn main() -> Result<()> {
 
     Err(anyhow!("Application should not stop running."))
 }
+
 fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
     let application = Application::new(Some("net.soliddesign.j1939dascanner"), Default::default());
     application.connect_activate(move |app| {
@@ -41,28 +42,51 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
         window.set_default_size(800, 600);
 
         let notebook = Notebook::new();
+
+        let j1939_table = j1939da_ui::J1939Table::new();
+        let j1939da_table_component = j1939da_ui::create_ui(j1939_table.clone());
+        notebook.append_page(
+            &j1939da_table_component,
+            Some(&gtk::Label::new(Some(&"Table"))),
+        );
+
         notebook.append_page(
             &j1939da_ui::j1939da_log(&bus),
             Some(&gtk::Label::new(Some(&"Log"))),
         );
-        notebook.append_page(
-            &j1939da_ui::j1939da_table(),
-            Some(&gtk::Label::new(Some(&"Table"))),
-        );
-        // notebook.append_page(
-        //     &j1939da_ui::j1939da_scanner(&spns, &bus),
-        //     Some(&gtk::Label::new(Some(&"Scanner"))),
-        // );
-        // notebook.append_page(
-        //     &j1939da_ui::j1939da_faults(&spns, &bus),
-        //     Some(&gtk::Label::new(Some(&"Faults"))),
-        // );
 
-        let menu = MenuItem::with_label("RP1210");
-        menu.set_submenu(Some(&create_rp1210_menu(bus.clone()).unwrap()));
+        let rp1210_menu = MenuItem::with_label("RP1210");
+        rp1210_menu.set_submenu(Some(&create_rp1210_menu(bus.clone()).unwrap()));
 
+        let j1939_menu = MenuItem::with_label("J1939DA...");
+        j1939_menu.connect_activate(glib::clone!(@weak window => move |_| {
+            let file_chooser = gtk::FileChooserDialog::new(
+                Some("Open File"),
+                Some(&window),
+                gtk::FileChooserAction::Open,
+            );
+            file_chooser.add_buttons(&[
+                ("Open", gtk::ResponseType::Ok),
+                ("Cancel", gtk::ResponseType::Cancel),
+            ]);
+            let j1939_table = j1939_table.clone();
+            file_chooser.connect_response( move |file_chooser, response| {
+                if response == gtk::ResponseType::Ok {
+                    let filename = file_chooser.filename().expect("Couldn't get filename");
+                    let filename = filename.to_str();
+                    filename.map(|f|{
+                        j1939_table.lock().expect("Unable to unlock model.")
+                        .file(f).expect("Unable to load J1939DA");
+                    });
+                            }
+                file_chooser.close();
+            });
+
+            file_chooser.show_all();
+        }));
         let menubar = MenuBar::new();
-        menubar.append(&menu);
+        menubar.append(&j1939_menu);
+        menubar.append(&rp1210_menu);
 
         let vbox = Box::builder().orientation(Orientation::Vertical).build();
         vbox.pack_start(&menubar, false, false, 0);
@@ -77,10 +101,24 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
     let rp1210_menu = Menu::new();
 
     let closer: Arc<Mutex<Option<std::boxed::Box<dyn Fn() -> ()>>>> = Arc::new(Mutex::new(None));
+    {
+        // Add the close RP1210 option
+        let device_menu_item = MenuItem::with_label("Disconnect");
+        let c1 = closer.clone();
+        device_menu_item.connect_activate(move |_| {
+            let mut closer = c1.lock().unwrap();
+            // execute close if there is a prior rp1210 adapter
+            closer.as_ref().map(|a| a());
+            *closer = None;
+        });
+        rp1210_menu.add(&device_menu_item);
+    }
     for product in rp1210_parsing::list_all_products()? {
         let product_menu_item = MenuItem::with_label(&product.id);
         rp1210_menu.append(&product_menu_item);
         let product_menu = Menu::new();
+
+        // Add all RP1210 J1939 devices
         for device in product.devices {
             let device_menu_item = MenuItem::with_label(&device.description);
             let pid = product.id.clone();

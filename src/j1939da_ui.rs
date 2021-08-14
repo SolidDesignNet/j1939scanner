@@ -6,9 +6,9 @@ extern crate gtk;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Mutex;
 use std::thread;
 
 use crate::j1939::packet::J1939Packet;
@@ -25,6 +25,88 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
     col.set_clickable(true);
     col.set_sort_column_id(id);
     col
+}
+pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
+    let table = this.lock().expect("Unable to lock.");
+    let view = TreeView::with_model(&table.list);
+    view.append_column(&config_col(&"PGN", 0));
+    view.append_column(&config_col(&"PGN (hex)", 1));
+    view.append_column(&config_col(&"SPN", 2));
+    view.append_column(&config_col(&"SPN (hex)", 3));
+    view.append_column(&config_col(&"Name", 4));
+    view.append_column(&config_col(&"Unit", 5));
+    view.append_column(&config_col(&"Scale", 6));
+    view.append_column(&config_col(&"Offest", 7));
+
+    table.refilter();
+
+    let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    {
+        // SPN filters
+        filter_box.add(&gtk::Label::new(Some("SPN filter")));
+
+        let spn_dec = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"decimal")
+            .build();
+        let rc = this.clone();
+        spn_dec.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.spn_dec = e.buffer().text();
+            c.refilter();
+        });
+        filter_box.pack_start(&spn_dec, true, true, 0);
+
+        let spn_hex = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"hex")
+            .build();
+        let rc = this.clone();
+        spn_hex.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.spn_hex = e.buffer().text();
+            c.refilter();
+        });
+        filter_box.pack_start(&spn_hex, true, true, 0);
+    }
+    {
+        // PGN filters
+        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
+        let pgn_dec = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"decimal")
+            .build();
+        filter_box.pack_start(&pgn_dec, true, true, 0);
+        let rc = this.clone();
+        pgn_dec.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.pgn_dec = e.buffer().text();
+            c.refilter();
+        });
+
+        let pgn_hex = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"hex")
+            .build();
+        filter_box.pack_start(&pgn_hex, true, true, 0);
+        let rc = this.clone();
+        pgn_hex.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.pgn_hex = e.buffer().text();
+            c.refilter();
+        });
+    }
+
+    view.selection().set_mode(SelectionMode::Multiple);
+
+    let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+    sw.add(&view);
+
+    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vbox.pack_start(&filter_box, false, false, 4);
+    vbox.pack_start(&sw, true, true, 0);
+
+    vbox.upcast()
 }
 
 pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
@@ -63,107 +145,8 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     sw.add(&view);
     sw.upcast()
 }
-pub fn j1939da_table() -> gtk::Container {
-    let controller = Rc::new(RefCell::new(Controller {
-        table: crate::j1939::load_j1939da("da.xlsx").unwrap(),
-        list: ListStore::new(&[
-            u32::static_type(),
-            String::static_type(),
-            u32::static_type(),
-            String::static_type(),
-            String::static_type(),
-            String::static_type(),
-            f64::static_type(),
-            f64::static_type(),
-        ]),
-        spn_dec: "".to_string(),
-        spn_hex: "".to_string(),
-        pgn_dec: "".to_string(),
-        pgn_hex: "".to_string(),
-    }));
 
-    let view = TreeView::with_model(&controller.borrow().list);
-    view.append_column(&config_col(&"PGN", 0));
-    view.append_column(&config_col(&"PGN (hex)", 1));
-    view.append_column(&config_col(&"SPN", 2));
-    view.append_column(&config_col(&"SPN (hex)", 3));
-    view.append_column(&config_col(&"Name", 4));
-    view.append_column(&config_col(&"Unit", 5));
-    view.append_column(&config_col(&"Scale", 6));
-    view.append_column(&config_col(&"Offest", 7));
-
-    controller.borrow().refilter();
-
-    let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    {
-        // SPN filters
-        filter_box.add(&gtk::Label::new(Some("SPN filter")));
-
-        let spn_dec = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"decimal")
-            .build();
-        let c2 = controller.clone();
-        spn_dec.connect_changed(move |e| {
-            let mut controller = c2.borrow_mut();
-            controller.spn_dec = e.buffer().text();
-            controller.refilter();
-        });
-        filter_box.pack_start(&spn_dec, true, true, 0);
-
-        let spn_hex = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"hex")
-            .build();
-        let c2 = controller.clone();
-        spn_hex.connect_changed(move |e| {
-            let mut controller = c2.borrow_mut();
-            controller.spn_hex = e.buffer().text();
-            controller.refilter();
-        });
-        filter_box.pack_start(&spn_hex, true, true, 0);
-    }
-    {
-        // PGN filters
-        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
-        let pgn_dec = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"decimal")
-            .build();
-        filter_box.pack_start(&pgn_dec, true, true, 0);
-        let c2 = controller.clone();
-        pgn_dec.connect_changed(move |e| {
-            let mut controller = c2.borrow_mut();
-            controller.pgn_dec = e.buffer().text();
-            controller.refilter();
-        });
-
-        let pgn_hex = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"hex")
-            .build();
-        filter_box.pack_start(&pgn_hex, true, true, 0);
-        let c2 = controller.clone();
-        pgn_hex.connect_changed(move |e| {
-            let mut controller = c2.borrow_mut();
-            controller.pgn_hex = e.buffer().text();
-            controller.refilter();
-        });
-    }
-
-    view.selection().set_mode(SelectionMode::Multiple);
-
-    let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-    sw.add(&view);
-
-    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vbox.pack_start(&filter_box, false, false, 4);
-    vbox.pack_start(&sw, true, true, 0);
-
-    vbox.upcast()
-}
-
-struct Controller {
+pub struct J1939Table {
     table: HashMap<u32, J1939DARow>,
     list: ListStore,
     spn_dec: String,
@@ -172,8 +155,33 @@ struct Controller {
     pgn_hex: String,
 }
 
-impl Controller {
-    fn refilter(&self) {
+impl J1939Table {
+    pub fn file(&mut self, file: &str) -> anyhow::Result<()> {
+        self.table = crate::j1939::load_j1939da(file)?;
+        self.refilter();
+        Ok(())
+    }
+    pub fn new() -> Rc<Mutex<J1939Table>> {
+        Rc::new(Mutex::new(J1939Table {
+            table: HashMap::new(),
+            list: ListStore::new(&[
+                u32::static_type(),
+                String::static_type(),
+                u32::static_type(),
+                String::static_type(),
+                String::static_type(),
+                String::static_type(),
+                f64::static_type(),
+                f64::static_type(),
+            ]),
+            spn_dec: "".to_string(),
+            spn_hex: "".to_string(),
+            pgn_dec: "".to_string(),
+            pgn_hex: "".to_string(),
+        }))
+    }
+
+    pub fn refilter(&self) {
         let pat = |c: char| !c.is_ascii_hexdigit();
 
         let spns: Vec<u32> = self
