@@ -1,6 +1,7 @@
 extern crate gio;
 extern crate gtk;
 
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 // yikes. Comment out the next line, then try to make sense of that error message!
@@ -18,6 +19,7 @@ mod rp1210;
 mod rp1210_parsing;
 
 use j1939::packet::*;
+use j1939da_ui::J1939Table;
 use multiqueue::*;
 use rp1210::*;
 
@@ -43,51 +45,33 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
 
         let notebook = Notebook::new();
 
-        let j1939_table = j1939da_ui::J1939Table::new();
+        let j1939_table = Rc::new(Mutex::new(J1939Table::new()));
         let j1939da_table_component = j1939da_ui::create_ui(j1939_table.clone());
         notebook.append_page(
             &j1939da_table_component,
-            Some(&gtk::Label::new(Some(&"Table"))),
+            Some(&gtk::Label::new(Some(&"J1939DA"))),
         );
 
         notebook.append_page(
             &j1939da_ui::j1939da_log(&bus),
-            Some(&gtk::Label::new(Some(&"Log"))),
+            Some(&gtk::Label::new(Some(&"CAN"))),
         );
 
-        let rp1210_menu = MenuItem::with_label("RP1210");
-        rp1210_menu.set_submenu(Some(&create_rp1210_menu(bus.clone()).unwrap()));
-
-        let j1939_menu = MenuItem::with_label("J1939DA...");
-        j1939_menu.connect_activate(glib::clone!(@weak window => move |_| {
-            let file_chooser = gtk::FileChooserDialog::new(
-                Some("Open File"),
-                Some(&window),
-                gtk::FileChooserAction::Open,
-            );
-            file_chooser.add_buttons(&[
-                ("Open", gtk::ResponseType::Ok),
-                ("Cancel", gtk::ResponseType::Cancel),
-            ]);
-            let j1939_table = j1939_table.clone();
-            file_chooser.connect_response( move |file_chooser, response| {
-                if response == gtk::ResponseType::Ok {
-                    let filename = file_chooser.filename().expect("Couldn't get filename");
-                    let filename = filename.to_str();
-                    filename.map(|f|{
-                        j1939_table.lock().expect("Unable to unlock model.")
-                        .file(f).expect("Unable to load J1939DA");
-                    });
-                            }
-                file_chooser.close();
-            });
-
-            file_chooser.show_all();
-        }));
         let menubar = MenuBar::new();
-        menubar.append(&j1939_menu);
-        menubar.append(&rp1210_menu);
-
+        {
+            let files_item = MenuItem::with_label("Files");
+            let menu = Menu::new();
+            menu.append(
+                &create_j1939da_menu(&j1939_table, &window).expect("Unable to create J1939 menu"),
+            );
+            files_item.set_submenu(Some(&menu));
+            menubar.append(&files_item);
+        }
+        {
+            let rp1210_menu = MenuItem::with_label("RP1210");
+            rp1210_menu.set_submenu(create_rp1210_menu(bus.clone()).ok().as_ref());
+            menubar.append(&rp1210_menu);
+        }
         let vbox = Box::builder().orientation(Orientation::Vertical).build();
         vbox.pack_start(&menubar, false, false, 0);
         vbox.pack_end(&notebook, true, true, 0);
@@ -97,9 +81,42 @@ fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
     Ok(application)
 }
 
+fn create_j1939da_menu(
+    j1939_table: &Rc<Mutex<J1939Table>>,
+    window: &ApplicationWindow,
+) -> Result<MenuItem> {
+    let j1939_menu = MenuItem::with_label("J1939DA...");
+    let j1939_table = j1939_table.clone();
+    j1939_menu.connect_activate(glib::clone!(@weak window => move |_| {
+        let file_chooser = gtk::FileChooserDialog::new(
+            Some("Open File"),
+            Some(&window),
+            gtk::FileChooserAction::Open,
+        );
+        file_chooser.add_buttons(&[
+            ("Open", gtk::ResponseType::Ok),
+            ("Cancel", gtk::ResponseType::Cancel),
+        ]);
+        let j1939_table = j1939_table.clone();
+        file_chooser.connect_response( move |file_chooser, response| {
+            if response == gtk::ResponseType::Ok {
+                let filename = file_chooser.filename().expect("Couldn't get filename");
+                let filename = filename.to_str();
+                filename.map(|f|{
+                    j1939_table.lock().expect("Unable to unlock model.")
+                    .file(f).expect("Unable to load J1939DA");
+                });
+                        }
+            file_chooser.close();
+        });
+
+        file_chooser.show_all();
+    }));
+    return Ok(j1939_menu);
+}
+
 fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
     let rp1210_menu = Menu::new();
-
     let closer: Arc<Mutex<Option<std::boxed::Box<dyn Fn() -> ()>>>> = Arc::new(Mutex::new(None));
     {
         // Add the close RP1210 option
@@ -111,7 +128,7 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
             closer.as_ref().map(|a| a());
             *closer = None;
         });
-        rp1210_menu.add(&device_menu_item);
+        rp1210_menu.append(&device_menu_item);
     }
     for product in rp1210_parsing::list_all_products()? {
         let product_menu_item = MenuItem::with_label(&product.id);

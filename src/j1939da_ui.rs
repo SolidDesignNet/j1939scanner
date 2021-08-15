@@ -7,18 +7,19 @@ use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::*;
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Mutex;
-use std::thread;
+use std::{rc::Rc, sync::Mutex, thread};
 
-use crate::j1939::packet::J1939Packet;
-use crate::j1939::J1939DARow;
-use crate::multiqueue::MultiQueue;
+use crate::{
+    j1939::{packet::J1939Packet, J1939DARow},
+    multiqueue::MultiQueue,
+};
 
-fn config_col(name: &str, id: i32) -> TreeViewColumn {
+fn config_col(name: &str, mono: bool, id: i32) -> TreeViewColumn {
     let col = TreeViewColumnBuilder::new().title(name).build();
     let cell = CellRendererText::new();
-    cell.set_font(Some("monospace"));
+    if mono {
+        cell.set_font(Some("monospace"));
+    }
     col.pack_start(&cell, true);
     col.add_attribute(&cell, "text", id);
     col.set_sort_indicator(true);
@@ -29,18 +30,45 @@ fn config_col(name: &str, id: i32) -> TreeViewColumn {
 pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
     let table = this.lock().expect("Unable to lock.");
     let view = TreeView::with_model(&table.list);
-    view.append_column(&config_col(&"PGN", 0));
-    view.append_column(&config_col(&"PGN (hex)", 1));
-    view.append_column(&config_col(&"SPN", 2));
-    view.append_column(&config_col(&"SPN (hex)", 3));
-    view.append_column(&config_col(&"Name", 4));
-    view.append_column(&config_col(&"Unit", 5));
-    view.append_column(&config_col(&"Scale", 6));
-    view.append_column(&config_col(&"Offest", 7));
+    view.append_column(&config_col(&"PGN", false, 0));
+    view.append_column(&config_col(&"xPGN", true, 1));
+    view.append_column(&config_col(&"SPN", false, 2));
+    view.append_column(&config_col(&"xSPN", true, 3));
+    view.append_column(&config_col(&"Name", false, 4));
+    view.append_column(&config_col(&"Unit", false, 5));
+    view.append_column(&config_col(&"Scale", false, 6));
+    view.append_column(&config_col(&"Offest", false, 7));
 
     table.refilter();
 
     let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    {
+        // PGN filters
+        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
+        let pgn_dec = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"decimal")
+            .build();
+        filter_box.pack_start(&pgn_dec, true, true, 0);
+        let rc = this.clone();
+        pgn_dec.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.pgn_dec = e.buffer().text();
+            c.refilter();
+        });
+
+        let pgn_hex = gtk::Entry::builder()
+            .width_chars(6)
+            .placeholder_text(&"hex")
+            .build();
+        filter_box.pack_start(&pgn_hex, true, true, 0);
+        let rc = this.clone();
+        pgn_hex.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.pgn_hex = e.buffer().text();
+            c.refilter();
+        });
+    }
     {
         // SPN filters
         filter_box.add(&gtk::Label::new(Some("SPN filter")));
@@ -69,33 +97,6 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
         });
         filter_box.pack_start(&spn_hex, true, true, 0);
     }
-    {
-        // PGN filters
-        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
-        let pgn_dec = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"decimal")
-            .build();
-        filter_box.pack_start(&pgn_dec, true, true, 0);
-        let rc = this.clone();
-        pgn_dec.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.pgn_dec = e.buffer().text();
-            c.refilter();
-        });
-
-        let pgn_hex = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"hex")
-            .build();
-        filter_box.pack_start(&pgn_hex, true, true, 0);
-        let rc = this.clone();
-        pgn_hex.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.pgn_hex = e.buffer().text();
-            c.refilter();
-        });
-    }
 
     view.selection().set_mode(SelectionMode::Multiple);
 
@@ -118,10 +119,10 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     ]);
     let view = TreeView::with_model(&TreeModelSort::new(&list));
 
-    view.append_column(&config_col(&"Time", 0));
-    view.append_column(&config_col(&"Size", 1));
-    view.append_column(&config_col(&"Head", 2));
-    view.append_column(&config_col(&"Data", 3));
+    view.append_column(&config_col(&"Time", false, 0));
+    view.append_column(&config_col(&"Size", false, 1));
+    view.append_column(&config_col(&"Head", true, 2));
+    view.append_column(&config_col(&"Data", true, 3));
 
     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
     let stream = bus.iter_for(std::time::Duration::from_secs(60 * 60 * 24 * 30));
@@ -161,8 +162,8 @@ impl J1939Table {
         self.refilter();
         Ok(())
     }
-    pub fn new() -> Rc<Mutex<J1939Table>> {
-        Rc::new(Mutex::new(J1939Table {
+    pub fn new() -> J1939Table {
+        J1939Table {
             table: HashMap::new(),
             list: ListStore::new(&[
                 u32::static_type(),
@@ -178,7 +179,7 @@ impl J1939Table {
             spn_hex: "".to_string(),
             pgn_dec: "".to_string(),
             pgn_hex: "".to_string(),
-        }))
+        }
     }
 
     pub fn refilter(&self) {
