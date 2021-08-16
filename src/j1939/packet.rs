@@ -42,7 +42,7 @@ fn as_hex(data: &[u8]) -> String {
     for byte in data {
         write!(&mut s, " {:02X}", byte).expect("Unable to write");
     }
-    s
+    s[1..].to_string()
 }
 impl Display for Packet {
     fn fmt(&self, f: &mut Formatter) -> Result {

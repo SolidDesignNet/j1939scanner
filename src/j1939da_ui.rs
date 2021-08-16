@@ -15,16 +15,22 @@ use crate::{
 };
 
 fn config_col(name: &str, mono: bool, id: i32) -> TreeViewColumn {
-    let col = TreeViewColumnBuilder::new().title(name).build();
+    let col = TreeViewColumn::new();
+    col.set_title(name);
     let cell = CellRendererText::new();
     if mono {
         cell.set_font(Some("monospace"));
     }
+    cell.set_ellipsize(pango::EllipsizeMode::End);
+
     col.pack_start(&cell, true);
     col.add_attribute(&cell, "text", id);
     col.set_sort_indicator(true);
     col.set_clickable(true);
     col.set_sort_column_id(id);
+    col.set_reorderable(true);
+    col.set_resizable(true);
+
     col
 }
 pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
@@ -34,10 +40,11 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
     view.append_column(&config_col(&"xPGN", true, 1));
     view.append_column(&config_col(&"SPN", false, 2));
     view.append_column(&config_col(&"xSPN", true, 3));
-    view.append_column(&config_col(&"Name", false, 4));
-    view.append_column(&config_col(&"Unit", false, 5));
-    view.append_column(&config_col(&"Scale", false, 6));
-    view.append_column(&config_col(&"Offest", false, 7));
+    view.append_column(&config_col(&"PGN Description", false, 4));
+    view.append_column(&config_col(&"SPN Description", false, 5));
+    view.append_column(&config_col(&"Unit", false, 6));
+    view.append_column(&config_col(&"Scale", false, 7));
+    view.append_column(&config_col(&"Offest", false, 8));
 
     table.refilter();
 
@@ -97,7 +104,28 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
         });
         filter_box.pack_start(&spn_hex, true, true, 0);
     }
+    {
+        //filter description}
+        filter_box.add(&gtk::Label::new(Some("Filter")));
 
+        let desc = gtk::Entry::builder()
+            .width_chars(12)
+            .placeholder_text(&"description")
+            .build();
+        let rc = this.clone();
+        desc.connect_changed(move |e| {
+            let mut c = rc.lock().expect("Unable to lock.");
+            c.description = e
+                .buffer()
+                .text()
+                .to_ascii_lowercase()
+                .split_ascii_whitespace()
+                .map(|s| s.to_string())
+                .collect();
+            c.refilter();
+        });
+        filter_box.pack_start(&desc, true, true, 0);
+    }
     view.selection().set_mode(SelectionMode::Multiple);
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
@@ -107,7 +135,7 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
     vbox.pack_start(&filter_box, false, false, 4);
     vbox.pack_start(&sw, true, true, 0);
 
-    vbox.upcast()
+    add_copy_button(&vbox.upcast(), view)
 }
 
 pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
@@ -144,7 +172,46 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
-    sw.upcast()
+
+    add_copy_button(&sw.upcast(), view)
+}
+
+fn add_copy_button(sw: &Container, view: TreeView) -> Container {
+    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vbox.pack_start(sw, true, true, 0);
+    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    let copy_button = Button::new();
+    copy_button.set_label("Copy");
+    copy_button.connect_clicked(move |_f| {
+        gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&copy(&view));
+    });
+    buttons.pack_end(&copy_button, false, false, 0);
+    vbox.pack_end(&buttons, false, false, 0);
+    vbox.upcast()
+}
+
+fn copy(view: &TreeView) -> String {
+    let (vec, list) = view.selection().selected_rows();
+    vec.iter()
+        .map(|p| {
+            (0..list.n_columns())
+                .map(|c| {
+                    let value = list.value(list.iter(p).as_ref().unwrap(), c);
+                    value
+                        .get::<String>()
+                        .map(|s| "\"".to_string() + &s + "\"")
+                        .or_else(|_| value.get::<f64>().map(|n| n.to_string()))
+                        .or_else(|_| value.get::<f32>().map(|n| n.to_string()))
+                        .or_else(|_| value.get::<i32>().map(|n| n.to_string()))
+                        .or_else(|_| value.get::<u32>().map(|n| n.to_string()))
+                        .unwrap_or("Unknown".to_string())
+                })
+                .fold(
+                    String::new(),
+                    |a, b| if a.is_empty() { b } else { a + "\t" + &b },
+                )
+        })
+        .fold(String::new(), |a, b| a + "\n" + &b)
 }
 
 pub struct J1939Table {
@@ -154,6 +221,7 @@ pub struct J1939Table {
     spn_hex: String,
     pgn_dec: String,
     pgn_hex: String,
+    description: Vec<String>,
 }
 
 impl J1939Table {
@@ -172,6 +240,7 @@ impl J1939Table {
                 String::static_type(),
                 String::static_type(),
                 String::static_type(),
+                String::static_type(),
                 f64::static_type(),
                 f64::static_type(),
             ]),
@@ -179,6 +248,7 @@ impl J1939Table {
             spn_hex: "".to_string(),
             pgn_dec: "".to_string(),
             pgn_hex: "".to_string(),
+            description: vec![],
         }
     }
 
@@ -202,12 +272,33 @@ impl J1939Table {
             .map(|r| r.unwrap())
             .collect();
 
-        println!("refilter spns: {:?} pgns: {:?}", spns, pgns);
+        println!(
+            "refilter spns: {:?} pgns: {:?} desc: {:?}",
+            spns, pgns, self.description
+        );
         self.list.clear();
         for row in self.table.values() {
-            if spns.is_empty() && pgns.is_empty()
+            if spns.is_empty() && pgns.is_empty() && self.description.is_empty()
                 || row.spn.filter(|n| spns.contains(&n)).is_some()
                 || row.pg.filter(|n| pgns.contains(&n)).is_some()
+                || row
+                    .pg_description
+                    .as_ref()
+                    .filter(|desc| {
+                        self.description
+                            .iter()
+                            .any(|token| desc.to_ascii_lowercase().contains(token))
+                    })
+                    .is_some()
+                || row
+                    .sp_description
+                    .as_ref()
+                    .filter(|desc| {
+                        self.description
+                            .iter()
+                            .any(|token| desc.to_ascii_lowercase().contains(token))
+                    })
+                    .is_some()
             {
                 self.list.insert_with_values(
                     None,
@@ -216,10 +307,11 @@ impl J1939Table {
                         (1, &format!("{:04X}", row.pg.unwrap_or(0))),
                         (2, &row.spn.unwrap_or(0)),
                         (3, &format!("{:04X}", row.spn.unwrap_or(0))),
-                        (4, &row.sp_label),
-                        (5, &row.unit),
-                        (6, &row.scale.unwrap_or(1.0)),
-                        (6, &row.offset.unwrap_or(0.0)),
+                        (4, &row.pg_description),
+                        (5, &row.sp_label),
+                        (6, &row.unit),
+                        (7, &row.scale.unwrap_or(1.0)),
+                        (8, &row.offset.unwrap_or(0.0)),
                     ],
                 );
             }

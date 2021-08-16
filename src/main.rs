@@ -97,6 +97,9 @@ fn create_j1939da_menu(
             ("Open", gtk::ResponseType::Ok),
             ("Cancel", gtk::ResponseType::Cancel),
         ]);
+        let ff = FileFilter::new();
+        ff.add_pattern("*.xlsx");
+        file_chooser.add_filter(&ff);
         let j1939_table = j1939_table.clone();
         file_chooser.connect_response( move |file_chooser, response| {
             if response == gtk::ResponseType::Ok {
