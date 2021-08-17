@@ -134,7 +134,7 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>) -> Result<Menu> {
         rp1210_menu.append(&device_menu_item);
     }
     for product in rp1210_parsing::list_all_products()? {
-        let product_menu_item = MenuItem::with_label(&product.id);
+        let product_menu_item = MenuItem::with_label(&product.description);
         rp1210_menu.append(&product_menu_item);
         let product_menu = Menu::new();
 

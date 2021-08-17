@@ -9,6 +9,7 @@ pub struct Rp1210Dev {
 #[derive(Debug)]
 pub struct Rp1210Prod {
     pub id: String,
+    pub description: String,
     pub devices: Vec<Rp1210Dev>,
 }
 
@@ -18,16 +19,20 @@ pub fn list_all_products() -> Result<Vec<Rp1210Prod>> {
         .get_from(Some("RP1210Support"), "APIImplementations")
         .unwrap_or("")
         .split(",")
-        .map(|s| Rp1210Prod {
-            id: s.to_string(),
-            devices: list_devices_for_prod(s).unwrap(),
+        .map(|s| {
+            let (description, devices) = list_devices_for_prod(s).unwrap();
+            Rp1210Prod {
+                id: s.to_string(),
+                description: description.to_string(),
+                devices,
+            }
         })
         .collect());
     println!("RP1210 INI parsing in {} ms", start.elapsed().as_millis());
     rtn
 }
 
-fn list_devices_for_prod(id: &str) -> Result<Vec<Rp1210Dev>> {
+fn list_devices_for_prod(id: &str) -> Result<(String, Vec<Rp1210Dev>)> {
     let start = std::time::Instant::now();
     let ini = ini::Ini::load_from_file(&format!("c:\\Windows\\{}.ini", id))?;
 
@@ -48,7 +53,7 @@ fn list_devices_for_prod(id: &str) -> Result<Vec<Rp1210Dev>> {
         .collect();
 
     // find the specified devices
-    let rtn = Ok(ini
+    let rtn = ini
         .iter()
         .filter(|(section, properties)| {
             section.unwrap().starts_with("DeviceInformation")
@@ -65,7 +70,14 @@ fn list_devices_for_prod(id: &str) -> Result<Vec<Rp1210Dev>> {
                 .unwrap_or("Unknown")
                 .to_string(),
         })
-        .collect());
+        .collect();
     println!("  {}.ini parsing in {} ms", id, start.elapsed().as_millis());
-    rtn
+    let description = ini.section(Some("VendorInformation"))
+            .unwrap()
+            .get("Name")
+            .unwrap().to_string();
+    Ok((
+        description,
+        rtn,
+    ))
 }

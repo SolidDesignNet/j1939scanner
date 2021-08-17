@@ -59,9 +59,9 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
         filter_box.pack_start(&pgn_dec, true, true, 0);
         let rc = this.clone();
         pgn_dec.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.pgn_dec = e.buffer().text();
-            c.refilter();
+            let mut table = rc.lock().expect("Unable to lock.");
+            table.pgn_dec = e.buffer().text();
+            table.refilter();
         });
 
         let pgn_hex = gtk::Entry::builder()
@@ -71,9 +71,9 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
         filter_box.pack_start(&pgn_hex, true, true, 0);
         let rc = this.clone();
         pgn_hex.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.pgn_hex = e.buffer().text();
-            c.refilter();
+            let mut table = rc.lock().expect("Unable to lock.");
+            table.pgn_hex = e.buffer().text();
+            table.refilter();
         });
     }
     {
@@ -86,9 +86,9 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
             .build();
         let rc = this.clone();
         spn_dec.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.spn_dec = e.buffer().text();
-            c.refilter();
+            let mut table = rc.lock().expect("Unable to lock.");
+            table.spn_dec = e.buffer().text();
+            table.refilter();
         });
         filter_box.pack_start(&spn_dec, true, true, 0);
 
@@ -98,14 +98,14 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
             .build();
         let rc = this.clone();
         spn_hex.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.spn_hex = e.buffer().text();
-            c.refilter();
+            let mut table = rc.lock().expect("Unable to lock.");
+            table.spn_hex = e.buffer().text();
+            table.refilter();
         });
         filter_box.pack_start(&spn_hex, true, true, 0);
     }
     {
-        //filter description}
+        //filter description
         filter_box.add(&gtk::Label::new(Some("Filter")));
 
         let desc = gtk::Entry::builder()
@@ -114,19 +114,19 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
             .build();
         let rc = this.clone();
         desc.connect_changed(move |e| {
-            let mut c = rc.lock().expect("Unable to lock.");
-            c.description = e
+            let mut table = rc.lock().expect("Unable to lock.");
+            table.description = e
                 .buffer()
                 .text()
                 .to_ascii_lowercase()
                 .split_ascii_whitespace()
                 .map(|s| s.to_string())
                 .collect();
-            c.refilter();
+            table.refilter();
         });
         filter_box.pack_start(&desc, true, true, 0);
     }
-    view.selection().set_mode(SelectionMode::Multiple);
+    connect_selectall_copy(&view);
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
@@ -134,8 +134,7 @@ pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
     let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
     vbox.pack_start(&filter_box, false, false, 4);
     vbox.pack_start(&sw, true, true, 0);
-
-    add_copy_button(&vbox.upcast(), view)
+    vbox.upcast()
 }
 
 pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
@@ -147,56 +146,61 @@ pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
     ]);
     let view = TreeView::with_model(&TreeModelSort::new(&list));
 
-    view.append_column(&config_col(&"Time", false, 0));
+    view.append_column(&config_col(&"Time (ms)", false, 0));
     view.append_column(&config_col(&"Size", false, 1));
     view.append_column(&config_col(&"Head", true, 2));
     view.append_column(&config_col(&"Data", true, 3));
 
     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
     let stream = bus.iter_for(std::time::Duration::from_secs(60 * 60 * 24 * 30));
-    thread::spawn(move || stream.for_each(|p| tx.send(p).unwrap()));
-    rx.attach(None, move |p| {
+    thread::spawn(move || stream.for_each(|packet| tx.send(packet).unwrap()));
+    rx.attach(None, move |packet| {
         list.insert_with_values(
             None,
             &[
-                (0, &p.time()),
-                (1, &(p.data().len() as u32)),
-                (2, &p.header()),
-                (3, &p.data_str()),
+                (0, &packet.time()),
+                (1, &(packet.data().len() as u32)),
+                (2, &packet.header()),
+                (3, &packet.data_str()),
             ],
         );
         glib::Continue(true)
     });
 
-    view.selection().set_mode(SelectionMode::Multiple);
+    connect_selectall_copy(&view);
 
     let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
     sw.add(&view);
-
-    add_copy_button(&sw.upcast(), view)
+    sw.upcast()
 }
 
-fn add_copy_button(sw: &Container, view: TreeView) -> Container {
-    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vbox.pack_start(sw, true, true, 0);
-    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    let copy_button = Button::new();
-    copy_button.set_label("Copy");
-    copy_button.connect_clicked(move |_f| {
-        gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&copy(&view));
+fn connect_selectall_copy(view: &TreeView) {
+    view.selection().set_mode(SelectionMode::Multiple);
+    view.connect_key_press_event(|view, key| {
+        if key.state().contains(gdk::ModifierType::CONTROL_MASK)
+            && key.keyval() == gdk::keys::Key::from_unicode('a')
+        {
+            view.selection().select_all();
+            Inhibit(true)
+        } else if key.state().contains(gdk::ModifierType::CONTROL_MASK)
+            && key.keyval() == gdk::keys::Key::from_unicode('c')
+        {
+            copy_table_to_clipboard(&view);
+            Inhibit(true)
+        } else {
+            Inhibit(false)
+        }
     });
-    buttons.pack_end(&copy_button, false, false, 0);
-    vbox.pack_end(&buttons, false, false, 0);
-    vbox.upcast()
 }
 
-fn copy(view: &TreeView) -> String {
+fn copy_table_to_clipboard(view: &TreeView) {
     let (vec, list) = view.selection().selected_rows();
-    vec.iter()
-        .map(|p| {
+    let as_string = vec
+        .iter()
+        .map(|path| {
             (0..list.n_columns())
-                .map(|c| {
-                    let value = list.value(list.iter(p).as_ref().unwrap(), c);
+                .map(|column| {
+                    let value = list.value(list.iter(path).as_ref().unwrap(), column);
                     value
                         .get::<String>()
                         .map(|s| "\"".to_string() + &s + "\"")
@@ -211,7 +215,11 @@ fn copy(view: &TreeView) -> String {
                     |a, b| if a.is_empty() { b } else { a + "\t" + &b },
                 )
         })
-        .fold(String::new(), |a, b| a + "\n" + &b)
+        .fold(
+            String::new(),
+            |a, b| if a.is_empty() { b } else { a + "\n" + &b },
+        );
+    gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&as_string);
 }
 
 pub struct J1939Table {
@@ -300,6 +308,7 @@ impl J1939Table {
                     })
                     .is_some()
             {
+                let empty = "".to_string();
                 self.list.insert_with_values(
                     None,
                     &[
@@ -307,9 +316,9 @@ impl J1939Table {
                         (1, &format!("{:04X}", row.pg.unwrap_or(0))),
                         (2, &row.spn.unwrap_or(0)),
                         (3, &format!("{:04X}", row.spn.unwrap_or(0))),
-                        (4, &row.pg_description),
-                        (5, &row.sp_label),
-                        (6, &row.unit),
+                        (4, row.pg_description.as_ref().unwrap_or(&empty)),
+                        (5, row.sp_label.as_ref().unwrap_or(&empty)),
+                        (6, row.unit.as_ref().unwrap_or(&empty)),
                         (7, &row.scale.unwrap_or(1.0)),
                         (8, &row.offset.unwrap_or(0.0)),
                     ],
