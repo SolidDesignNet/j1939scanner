@@ -1,14 +1,8 @@
-extern crate gio;
-extern crate gtk;
-
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 // yikes. Comment out the next line, then try to make sense of that error message!
 use anyhow::*;
-use gio::prelude::*;
-use gtk::prelude::*;
-use gtk::*;
 
 mod j1939;
 mod j1939da_ui;
@@ -18,6 +12,11 @@ mod multiqueue;
 mod rp1210;
 mod rp1210_parsing;
 
+use fltk::app::*;
+use fltk::group::*;
+use fltk::menu::*;
+use fltk::prelude::*;
+use fltk::window::Window;
 use j1939::packet::*;
 use j1939da_ui::J1939Table;
 use multiqueue::*;
@@ -31,53 +30,57 @@ pub fn main() -> Result<()> {
     //bus.log();
 
     // UI
-    create_application(bus.clone())?.run();
+    create_application(bus.clone())?.run()?;
 
     Err(anyhow!("Application should not stop running."))
 }
 
-fn create_application(bus: MultiQueue<J1939Packet>) -> Result<Application> {
-    let application = Application::new(Some("net.soliddesign.j1939dascanner"), Default::default());
-    application.connect_activate(move |app| {
-        let window = ApplicationWindow::new(app);
-        window.set_title("J1939DA Tool - Solid Design");
-        window.set_default_size(800, 600);
+fn create_application(bus: MultiQueue<J1939Packet>) -> Result<App> {
+    let application = App::default();
+    let window = Window::default()
+        .with_label("J1939DA Tool - Solid Design")
+        .with_size(800, 600);
 
-        let notebook = Notebook::new();
+    let tab = Tabs::new(10, 10, 500 - 20, 450 - 20, "");
 
-        let j1939_table = Rc::new(Mutex::new(J1939Table::new()));
-        let j1939da_table_component = j1939da_ui::create_ui(j1939_table.clone());
-        notebook.append_page(
-            &j1939da_table_component,
-            Some(&gtk::Label::new(Some(&"J1939DA"))),
+    let grp = Group::new(10, 35, 500 - 20, 450 - 45, "J1939DA");
+
+    let j1939_table = Rc::new(Mutex::new(J1939Table::new()));
+    j1939da_ui::create_ui(j1939_table.clone());
+    grp.end();
+
+    let grp = Group::new(10, 35, 500 - 20, 450 - 45, "J1939DA");
+    j1939da_ui::j1939da_log(&bus);
+    grp.end();
+
+    let mut menu = menu::SysMenuBar::default().with_size(800, 35);
+    menu.set_frame(FrameType::FlatBox);
+    menu.add
+    menu.add_emit(
+        "&File/J1939DA...\t",
+        Shortcut::None,
+        menu::MenuFlag::Normal,
+        *s,
+        Message::New,
+    );
+
+    let menu = Menu::new();
+        menu.append(
+            &create_j1939da_menu(&j1939_table, &window).expect("Unable to create J1939 menu"),
         );
-
-        notebook.append_page(
-            &j1939da_ui::j1939da_log(&bus),
-            Some(&gtk::Label::new(Some(&"CAN"))),
-        );
-
-        let menubar = MenuBar::new();
-        {
-            let files_item = MenuItem::with_label("Files");
-            let menu = Menu::new();
-            menu.append(
-                &create_j1939da_menu(&j1939_table, &window).expect("Unable to create J1939 menu"),
-            );
-            files_item.set_submenu(Some(&menu));
-            menubar.append(&files_item);
-        }
-        {
-            let rp1210_menu = MenuItem::with_label("RP1210");
-            rp1210_menu.set_submenu(create_rp1210_menu(bus.clone()).ok().as_ref());
-            menubar.append(&rp1210_menu);
-        }
-        let vbox = Box::builder().orientation(Orientation::Vertical).build();
-        vbox.pack_start(&menubar, false, false, 0);
-        vbox.pack_end(&notebook, true, true, 0);
-        window.add(&vbox);
-        window.show_all();
-    });
+        files_item.set_submenu(Some(&menu));
+        menubar.append(&files_item);
+    }
+    {
+        let rp1210_menu = MenuItem::with_label("RP1210");
+        rp1210_menu.set_submenu(create_rp1210_menu(bus.clone()).ok().as_ref());
+        menubar.append(&rp1210_menu);
+    }
+    let vbox = Box::builder().orientation(Orientation::Vertical).build();
+    vbox.pack_start(&menubar, false, false, 0);
+    vbox.pack_end(&notebook, true, true, 0);
+    window.add(&vbox);
+    window.show_all();
     Ok(application)
 }
 

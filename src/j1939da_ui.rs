@@ -1,11 +1,4 @@
-extern crate gio;
-extern crate glib;
-extern crate gtk;
-
 // yikes. Comment out the next line, then try to make sense of that error message!
-use gio::prelude::*;
-use gtk::prelude::*;
-use gtk::*;
 use std::collections::HashMap;
 use std::{rc::Rc, sync::Mutex, thread};
 
@@ -14,25 +7,6 @@ use crate::{
     multiqueue::MultiQueue,
 };
 
-fn config_col(name: &str, mono: bool, id: i32) -> TreeViewColumn {
-    let col = TreeViewColumn::new();
-    col.set_title(name);
-    let cell = CellRendererText::new();
-    if mono {
-        cell.set_font(Some("monospace"));
-    }
-    cell.set_ellipsize(pango::EllipsizeMode::End);
-
-    col.pack_start(&cell, true);
-    col.add_attribute(&cell, "text", id);
-    col.set_sort_indicator(true);
-    col.set_clickable(true);
-    col.set_sort_column_id(id);
-    col.set_reorderable(true);
-    col.set_resizable(true);
-
-    col
-}
 pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
     let table = this.lock().expect("Unable to lock.");
     let view = TreeView::with_model(&table.list);
