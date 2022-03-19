@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use anyhow::Result;
 use calamine::*;
 use serde::Deserialize;
@@ -94,7 +92,7 @@ pub struct J1939DARow {
     // #[serde(alias = "SP to PG Mapping Created or Modified Date")]
 }
 impl J1939DARow {}
-pub fn load_j1939da(file: &str) -> Result<HashMap<u32, J1939DARow>> {
+pub fn load_j1939da(file: &str) -> Result<Vec<J1939DARow>> {
     let start = std::time::Instant::now();
     let mut excel: Xlsx<_> = open_workbook(file)?;
     let range = excel
@@ -106,17 +104,14 @@ pub fn load_j1939da(file: &str) -> Result<HashMap<u32, J1939DARow>> {
     let iter = RangeDeserializerBuilder::new()
         .has_headers(true)
         .from_range(&subrange)?;
-    let mut map = HashMap::new();
+    let mut map = Vec::new();
     let mut errors = 0;
     let mut count = 0;
     for result in iter {
         count += 1;
         // ignore missing spns
         if result.is_ok() {
-            let data: J1939DARow = result?;
-            if let Some(spn) = data.spn {
-                map.insert(spn, data);
-            }
+            map.push(result?);
         } else {
             errors += 1;
             //println!("FAIL {}: {:?}", errors, result);

@@ -1,240 +1,41 @@
-// yikes. Comment out the next line, then try to make sense of that error message!
-use std::collections::HashMap;
-use std::{rc::Rc, sync::Mutex, thread};
+use anyhow::*;
+use core::cell::RefCell;
+use simple_table::simple_table::{SimpleModel, SimpleTable};
+use std::rc::Rc;
 
-use crate::{
-    j1939::{packet::J1939Packet, J1939DARow},
-    multiqueue::MultiQueue,
-};
+use fltk::frame::Frame;
+use fltk::group::{Pack, PackType, Scroll};
+use fltk::input::Input;
+use fltk::prelude::{GroupExt, InputExt, WidgetExt};
 
-pub fn create_ui(this: Rc<Mutex<J1939Table>>) -> gtk::Container {
-    let table = this.lock().expect("Unable to lock.");
-    let view = TreeView::with_model(&table.list);
-    view.append_column(&config_col(&"PGN", false, 0));
-    view.append_column(&config_col(&"xPGN", true, 1));
-    view.append_column(&config_col(&"SPN", false, 2));
-    view.append_column(&config_col(&"xSPN", true, 3));
-    view.append_column(&config_col(&"PGN Description", false, 4));
-    view.append_column(&config_col(&"SPN Description", false, 5));
-    view.append_column(&config_col(&"Unit", false, 6));
-    view.append_column(&config_col(&"Scale", false, 7));
-    view.append_column(&config_col(&"Offest", false, 8));
+use crate::j1939::J1939DARow;
+use crate::{Layout, Layoutable};
 
-    table.refilter();
-
-    let filter_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    {
-        // PGN filters
-        filter_box.pack_start(&gtk::Label::new(Some("PGN filter")), false, true, 0);
-        let pgn_dec = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"decimal")
-            .build();
-        filter_box.pack_start(&pgn_dec, true, true, 0);
-        let rc = this.clone();
-        pgn_dec.connect_changed(move |e| {
-            let mut table = rc.lock().expect("Unable to lock.");
-            table.pgn_dec = e.buffer().text();
-            table.refilter();
-        });
-
-        let pgn_hex = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"hex")
-            .build();
-        filter_box.pack_start(&pgn_hex, true, true, 0);
-        let rc = this.clone();
-        pgn_hex.connect_changed(move |e| {
-            let mut table = rc.lock().expect("Unable to lock.");
-            table.pgn_hex = e.buffer().text();
-            table.refilter();
-        });
-    }
-    {
-        // SPN filters
-        filter_box.add(&gtk::Label::new(Some("SPN filter")));
-
-        let spn_dec = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"decimal")
-            .build();
-        let rc = this.clone();
-        spn_dec.connect_changed(move |e| {
-            let mut table = rc.lock().expect("Unable to lock.");
-            table.spn_dec = e.buffer().text();
-            table.refilter();
-        });
-        filter_box.pack_start(&spn_dec, true, true, 0);
-
-        let spn_hex = gtk::Entry::builder()
-            .width_chars(6)
-            .placeholder_text(&"hex")
-            .build();
-        let rc = this.clone();
-        spn_hex.connect_changed(move |e| {
-            let mut table = rc.lock().expect("Unable to lock.");
-            table.spn_hex = e.buffer().text();
-            table.refilter();
-        });
-        filter_box.pack_start(&spn_hex, true, true, 0);
-    }
-    {
-        //filter description
-        filter_box.add(&gtk::Label::new(Some("Filter")));
-
-        let desc = gtk::Entry::builder()
-            .width_chars(12)
-            .placeholder_text(&"description")
-            .build();
-        let rc = this.clone();
-        desc.connect_changed(move |e| {
-            let mut table = rc.lock().expect("Unable to lock.");
-            table.description = e
-                .buffer()
-                .text()
-                .to_ascii_lowercase()
-                .split_ascii_whitespace()
-                .map(|s| s.to_string())
-                .collect();
-            table.refilter();
-        });
-        filter_box.pack_start(&desc, true, true, 0);
-    }
-    connect_selectall_copy(&view);
-
-    let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-    sw.add(&view);
-
-    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vbox.pack_start(&filter_box, false, false, 4);
-    vbox.pack_start(&sw, true, true, 0);
-    vbox.upcast()
-}
-
-pub(crate) fn j1939da_log(bus: &MultiQueue<J1939Packet>) -> gtk::Container {
-    let list = ListStore::new(&[
-        f64::static_type(),
-        u32::static_type(),
-        String::static_type(),
-        String::static_type(),
-    ]);
-    let view = TreeView::with_model(&TreeModelSort::new(&list));
-
-    view.append_column(&config_col(&"Time (ms)", false, 0));
-    view.append_column(&config_col(&"Size", false, 1));
-    view.append_column(&config_col(&"Head", true, 2));
-    view.append_column(&config_col(&"Data", true, 3));
-
-    let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let stream = bus.iter_for(std::time::Duration::from_secs(60 * 60 * 24 * 30));
-    thread::spawn(move || stream.for_each(|packet| tx.send(packet).unwrap()));
-    rx.attach(None, move |packet| {
-        list.insert_with_values(
-            None,
-            &[
-                (0, &packet.time()),
-                (1, &(packet.data().len() as u32)),
-                (2, &packet.header()),
-                (3, &packet.data_str()),
-            ],
-        );
-        glib::Continue(true)
-    });
-
-    connect_selectall_copy(&view);
-
-    let sw = ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-    sw.add(&view);
-    sw.upcast()
-}
-
-fn connect_selectall_copy(view: &TreeView) {
-    view.selection().set_mode(SelectionMode::Multiple);
-    view.connect_key_press_event(|view, key| {
-        if key.state().contains(gdk::ModifierType::CONTROL_MASK)
-            && key.keyval() == gdk::keys::Key::from_unicode('a')
-        {
-            view.selection().select_all();
-            Inhibit(true)
-        } else if key.state().contains(gdk::ModifierType::CONTROL_MASK)
-            && key.keyval() == gdk::keys::Key::from_unicode('c')
-        {
-            copy_table_to_clipboard(&view);
-            Inhibit(true)
-        } else {
-            Inhibit(false)
-        }
-    });
-}
-
-fn copy_table_to_clipboard(view: &TreeView) {
-    let (vec, list) = view.selection().selected_rows();
-    let as_string = vec
-        .iter()
-        .map(|path| {
-            (0..list.n_columns())
-                .map(|column| {
-                    let value = list.value(list.iter(path).as_ref().unwrap(), column);
-                    value
-                        .get::<String>()
-                        .map(|s| "\"".to_string() + &s + "\"")
-                        .or_else(|_| value.get::<f64>().map(|n| n.to_string()))
-                        .or_else(|_| value.get::<f32>().map(|n| n.to_string()))
-                        .or_else(|_| value.get::<i32>().map(|n| n.to_string()))
-                        .or_else(|_| value.get::<u32>().map(|n| n.to_string()))
-                        .unwrap_or("Unknown".to_string())
-                })
-                .fold(
-                    String::new(),
-                    |a, b| if a.is_empty() { b } else { a + "\t" + &b },
-                )
-        })
-        .fold(
-            String::new(),
-            |a, b| if a.is_empty() { b } else { a + "\n" + &b },
-        );
-    gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&as_string);
-}
-
+#[derive(Default)]
 pub struct J1939Table {
-    table: HashMap<u32, J1939DARow>,
-    list: ListStore,
+    rows: Vec<J1939DARow>,
+    filtered: Vec<usize>,
     spn_dec: String,
     spn_hex: String,
     pgn_dec: String,
     pgn_hex: String,
     description: Vec<String>,
+    update_cb: Option<Box<dyn FnMut()>>,
 }
 
 impl J1939Table {
     pub fn file(&mut self, file: &str) -> anyhow::Result<()> {
-        self.table = crate::j1939::load_j1939da(file)?;
+        self.rows = crate::j1939::load_j1939da(file)?;
         self.refilter();
         Ok(())
     }
-    pub fn new() -> J1939Table {
-        J1939Table {
-            table: HashMap::new(),
-            list: ListStore::new(&[
-                u32::static_type(),
-                String::static_type(),
-                u32::static_type(),
-                String::static_type(),
-                String::static_type(),
-                String::static_type(),
-                String::static_type(),
-                f64::static_type(),
-                f64::static_type(),
-            ]),
-            spn_dec: "".to_string(),
-            spn_hex: "".to_string(),
-            pgn_dec: "".to_string(),
-            pgn_hex: "".to_string(),
-            description: vec![],
-        }
+    pub fn filtered_row_count(&self) -> usize {
+        self.filtered.len()
     }
-
-    pub fn refilter(&self) {
+    pub fn filtered_row(&self, row: usize) -> &J1939DARow {
+        &self.rows[self.filtered[row]]
+    }
+    pub fn refilter(&mut self) {
         let pat = |c: char| !c.is_ascii_hexdigit();
 
         let spns: Vec<u32> = self
@@ -258,11 +59,12 @@ impl J1939Table {
             "refilter spns: {:?} pgns: {:?} desc: {:?}",
             spns, pgns, self.description
         );
-        self.list.clear();
-        for row in self.table.values() {
+        self.filtered.clear();
+        for index in 0..self.rows.len() {
+            let row = &self.rows[index];
             if spns.is_empty() && pgns.is_empty() && self.description.is_empty()
-                || row.spn.filter(|n| spns.contains(&n)).is_some()
-                || row.pg.filter(|n| pgns.contains(&n)).is_some()
+                || row.spn.filter(|n| spns.contains(n)).is_some()
+                || row.pg.filter(|n| pgns.contains(n)).is_some()
                 || row
                     .pg_description
                     .as_ref()
@@ -282,22 +84,154 @@ impl J1939Table {
                     })
                     .is_some()
             {
-                let empty = "".to_string();
-                self.list.insert_with_values(
-                    None,
-                    &[
-                        (0, &row.pg.unwrap_or(0)),
-                        (1, &format!("{:04X}", row.pg.unwrap_or(0))),
-                        (2, &row.spn.unwrap_or(0)),
-                        (3, &format!("{:04X}", row.spn.unwrap_or(0))),
-                        (4, row.pg_description.as_ref().unwrap_or(&empty)),
-                        (5, row.sp_label.as_ref().unwrap_or(&empty)),
-                        (6, row.unit.as_ref().unwrap_or(&empty)),
-                        (7, &row.scale.unwrap_or(1.0)),
-                        (8, &row.offset.unwrap_or(0.0)),
-                    ],
-                );
+                self.filtered.push(index);
             }
         }
+        println!("filtered.len {}", self.filtered.len());
+        if let Some(cb) = &mut self.update_cb {
+            cb()
+        }
     }
+}
+pub fn create_ui(
+    rc_self: Rc<RefCell<J1939Table>>,
+    layout: &mut Layout,
+) -> Result<Rc<RefCell<SimpleTable>>> {
+    {
+        rc_self.borrow_mut().refilter();
+    }
+
+    let vbox = Pack::default().layout_in(layout, 5);
+    let filter_box = Pack::default()
+        .with_type(PackType::Horizontal)
+        .layout_top(layout, 32);
+    {
+        let mut layout_pgn = *layout;
+        // PGN filters
+        let label = Frame::default().layout_top(layout, 40).with_label("PGN");
+        label.layout_right(&mut layout_pgn, 60);
+        let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
+
+        let rc = rc_self.clone();
+        pgn_dec.set_callback(move |e| {
+            rc.borrow_mut().pgn_dec = e.value();
+            rc.borrow_mut().refilter();
+        });
+
+        let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
+        let rc = rc_self.clone();
+        pgn_hex.set_callback(move |e| {
+            rc.borrow_mut().pgn_hex = e.value();
+            rc.borrow_mut().refilter();
+        });
+        //filter description
+        let mut description = Input::default().layout_top(&mut layout_pgn, 80);
+        let rc = rc_self.clone();
+        description.set_callback(move |e| {
+            rc.borrow_mut().description = e
+                .value()
+                .to_ascii_lowercase()
+                .split_ascii_whitespace()
+                .map(|s| s.to_string())
+                .collect();
+            rc.borrow_mut().refilter();
+        });
+    }
+    filter_box.end();
+    let filter_box = Pack::default()
+        .with_type(PackType::Horizontal)
+        .layout_top(layout, 32);
+    {
+        println!("SPN {:?}", layout);
+        // SPN filters
+        let label = Frame::default().layout_top(layout, 60).with_label("SPN");
+        let mut spn_layout = *layout;
+        label.layout_right(&mut spn_layout, 60);
+        let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
+        let rc = rc_self.clone();
+        spn_dec.set_callback(move |e| {
+            rc.borrow_mut().spn_dec = e.value();
+            rc.borrow_mut().refilter();
+        });
+        let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
+        let rc = rc_self.clone();
+        spn_hex.set_callback(move |e| {
+            rc.borrow_mut().spn_hex = e.value();
+            rc.borrow_mut().refilter();
+        });
+    }
+    filter_box.end();
+    let sw = Scroll::default().layout_in(layout, 0);
+    struct J1939Column {
+        name: String,
+        width: u32,
+        cell: Box<dyn Fn(&J1939DARow) -> Option<String>>,
+    }
+    let columns: Vec<J1939Column> = vec![
+        J1939Column {
+            name: "PGN".to_string(),
+            width: 50,
+            cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
+        },
+        J1939Column {
+            name: "Label".to_string(),
+            width: 200,
+            cell: Box::new(move |row| row.pg_label.to_owned()),
+        },
+        J1939Column {
+            name: "Acronym".to_string(),
+            width: 50,
+            cell: Box::new(move |row| row.pg_acronym.to_owned()),
+        },
+        J1939Column {
+            name: "SPN".to_string(),
+            width: 50,
+            cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
+        },
+        J1939Column {
+            name: "PGN".to_string(),
+            width: 50,
+            cell: Box::new(move |row| row.sp_description.to_owned()),
+        },
+    ];
+    struct J1939Model {
+        j1939_table: Rc<RefCell<J1939Table>>,
+        columns: Vec<J1939Column>,
+    }
+
+    impl SimpleModel for J1939Model {
+        fn row_count(&mut self) -> usize {
+            self.j1939_table.borrow().filtered_row_count()
+        }
+
+        fn column_count(self: &mut J1939Model) -> usize {
+            self.columns.len()
+        }
+
+        fn header(self: &mut J1939Model, col: usize) -> String {
+            self.columns[col].name.clone()
+        }
+
+        fn column_width(self: &mut J1939Model, col: usize) -> u32 {
+            self.columns[col].width
+        }
+
+        fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
+            (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
+        }
+
+        fn set_table(&mut self, table: Rc<RefCell<SimpleTable>>) -> () {
+            todo!()
+        }
+    }
+    let simple_table = SimpleTable::new(J1939Model {
+        j1939_table: rc_self.clone(),
+        columns,
+    });
+
+    let t = simple_table.clone();
+    rc_self.borrow_mut().update_cb = Some(Box::new(move || t.borrow_mut().redraw()));
+    sw.end();
+    vbox.end();
+    Ok(simple_table)
 }

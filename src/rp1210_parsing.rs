@@ -15,10 +15,15 @@ pub struct Rp1210Prod {
 
 pub fn list_all_products() -> Result<Vec<Rp1210Prod>> {
     let start = std::time::Instant::now();
-    let rtn = Ok(ini::Ini::load_from_file("c:\\Windows\\RP121032.ini")?
+    let load_from_file = ini::Ini::load_from_file("c:\\Windows\\RP121032.ini");
+    if load_from_file.is_err() {
+        // don't fail on linux
+        return Ok(Vec::new());
+    }
+    let rtn = Ok(load_from_file?
         .get_from(Some("RP1210Support"), "APIImplementations")
         .unwrap_or("")
-        .split(",")
+        .split(',')
         .map(|s| {
             let (description, devices) = list_devices_for_prod(s).unwrap();
             Rp1210Prod {
@@ -48,7 +53,7 @@ fn list_devices_for_prod(id: &str) -> Result<(String, Vec<Rp1210Dev>)> {
         .flat_map(|(_, properties)| {
             properties
                 .get("Devices")
-                .map_or(vec![], |s| s.split(",").collect())
+                .map_or(vec![], |s| s.split(',').collect())
         })
         .collect();
 
@@ -72,12 +77,11 @@ fn list_devices_for_prod(id: &str) -> Result<(String, Vec<Rp1210Dev>)> {
         })
         .collect();
     println!("  {}.ini parsing in {} ms", id, start.elapsed().as_millis());
-    let description = ini.section(Some("VendorInformation"))
-            .unwrap()
-            .get("Name")
-            .unwrap().to_string();
-    Ok((
-        description,
-        rtn,
-    ))
+    let description = ini
+        .section(Some("VendorInformation"))
+        .unwrap()
+        .get("Name")
+        .unwrap()
+        .to_string();
+    Ok((description, rtn))
 }

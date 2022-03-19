@@ -6,8 +6,10 @@ version = "0.1.0"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-calamine = "0.18.0"
-anyhow = "1.0.42"
-libloading = "0.7.0"
-rust-ini="0.17.0"
-fltk = { version = "1.1.11", features = ["fltk-bundled"] }
+calamine = "^0.18"
+anyhow = "^1"
+libloading = "^0.7"
+rust-ini="^0.18"
+fltk = { version = "^1.1", features = ["fltk-bundled"] }
+simple_table = {path="../simple_table", version="^0.1"}
+
