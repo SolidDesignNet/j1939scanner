@@ -36,40 +36,42 @@ impl J1939Table {
         &self.rows[self.filtered[row]]
     }
     pub fn refilter(&mut self) {
+        let table = self;
         let pat = |c: char| !c.is_ascii_hexdigit();
 
-        let spns: Vec<u32> = self
+        let spns: Vec<u32> = table
             .spn_dec
             .split(pat)
             .map(|s| s.parse())
-            .chain(self.spn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
+            .chain(table.spn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
             .filter(|r| r.is_ok())
             .map(|r| r.unwrap())
             .collect();
-        let pgns: Vec<u32> = self
+        let pgns: Vec<u32> = table
             .pgn_dec
             .split(pat)
             .map(|s| s.parse())
-            .chain(self.pgn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
+            .chain(table.pgn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
             .filter(|r| r.is_ok())
             .map(|r| r.unwrap())
             .collect();
 
         println!(
             "refilter spns: {:?} pgns: {:?} desc: {:?}",
-            spns, pgns, self.description
+            spns, pgns, table.description
         );
-        self.filtered.clear();
-        for index in 0..self.rows.len() {
-            let row = &self.rows[index];
-            if spns.is_empty() && pgns.is_empty() && self.description.is_empty()
+        table.filtered.clear();
+        for index in 0..table.rows.len() {
+            let row = &table.rows[index];
+            if spns.is_empty() && pgns.is_empty() && table.description.is_empty()
                 || row.spn.filter(|n| spns.contains(n)).is_some()
                 || row.pg.filter(|n| pgns.contains(n)).is_some()
                 || row
                     .pg_description
                     .as_ref()
                     .filter(|desc| {
-                        self.description
+                        table
+                            .description
                             .iter()
                             .any(|token| desc.to_ascii_lowercase().contains(token))
                     })
@@ -78,28 +80,21 @@ impl J1939Table {
                     .sp_description
                     .as_ref()
                     .filter(|desc| {
-                        self.description
+                        table
+                            .description
                             .iter()
                             .any(|token| desc.to_ascii_lowercase().contains(token))
                     })
                     .is_some()
             {
-                self.filtered.push(index);
+                table.filtered.push(index);
             }
         }
-        println!("filtered.len {}", self.filtered.len());
-        if let Some(cb) = &mut self.update_cb {
-            cb()
-        }
+        println!("filtered.len {}", table.filtered.len());
     }
 }
-pub fn create_ui(
-    rc_self: Rc<RefCell<J1939Table>>,
-    layout: &mut Layout,
-) -> Result<Rc<RefCell<SimpleTable>>> {
-    {
-        rc_self.borrow_mut().refilter();
-    }
+pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
+    rc_self.borrow_mut().refilter();
 
     let vbox = Pack::default().layout_in(layout, 5);
     let filter_box = Pack::default()
@@ -162,11 +157,7 @@ pub fn create_ui(
     }
     filter_box.end();
     let sw = Scroll::default().layout_in(layout, 0);
-    struct J1939Column {
-        name: String,
-        width: u32,
-        cell: Box<dyn Fn(&J1939DARow) -> Option<String>>,
-    }
+
     let columns: Vec<J1939Column> = vec![
         J1939Column {
             name: "PGN".to_string(),
@@ -194,44 +185,45 @@ pub fn create_ui(
             cell: Box::new(move |row| row.sp_description.to_owned()),
         },
     ];
-    struct J1939Model {
-        j1939_table: Rc<RefCell<J1939Table>>,
-        columns: Vec<J1939Column>,
-    }
-
-    impl SimpleModel for J1939Model {
-        fn row_count(&mut self) -> usize {
-            self.j1939_table.borrow().filtered_row_count()
-        }
-
-        fn column_count(self: &mut J1939Model) -> usize {
-            self.columns.len()
-        }
-
-        fn header(self: &mut J1939Model, col: usize) -> String {
-            self.columns[col].name.clone()
-        }
-
-        fn column_width(self: &mut J1939Model, col: usize) -> u32 {
-            self.columns[col].width
-        }
-
-        fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
-            (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
-        }
-
-        fn set_table(&mut self, table: Rc<RefCell<SimpleTable>>) -> () {
-            todo!()
-        }
-    }
-    let simple_table = SimpleTable::new(J1939Model {
+    let mut simple_table = SimpleTable::new(Box::new(J1939Model {
         j1939_table: rc_self.clone(),
         columns,
-    });
+        //table: None,
+    }));
 
-    let t = simple_table.clone();
-    rc_self.borrow_mut().update_cb = Some(Box::new(move || t.borrow_mut().redraw()));
+    rc_self.borrow_mut().update_cb = Some(Box::new(move || simple_table.redraw()));
     sw.end();
     vbox.end();
-    Ok(simple_table)
+}
+
+pub struct J1939Model {
+    j1939_table: Rc<RefCell<J1939Table>>,
+    columns: Vec<J1939Column>,
+}
+
+impl SimpleModel for J1939Model {
+    fn row_count(&mut self) -> usize {
+        self.j1939_table.borrow().filtered_row_count()
+    }
+
+    fn column_count(self: &mut J1939Model) -> usize {
+        self.columns.len()
+    }
+
+    fn header(self: &mut J1939Model, col: usize) -> String {
+        self.columns[col].name.clone()
+    }
+
+    fn column_width(self: &mut J1939Model, col: usize) -> u32 {
+        self.columns[col].width
+    }
+
+    fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
+        (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
+    }
+}
+struct J1939Column {
+    name: String,
+    width: u32,
+    cell: Box<dyn Fn(&J1939DARow) -> Option<String>>,
 }

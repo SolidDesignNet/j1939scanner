@@ -1,5 +1,4 @@
 use crate::layout::Layoutable;
-use ::simple_table;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -33,7 +32,6 @@ use j1939da_ui::J1939Table;
 use layout::Layout;
 use multiqueue::*;
 use rp1210::*;
-use simple_table::simple_table::SimpleTable;
 
 pub fn main() -> Result<()> {
     //create abstract CAN bus
@@ -43,12 +41,11 @@ pub fn main() -> Result<()> {
     //bus.log();
 
     // UI
-    J1939Scanner::new().run(bus)?;
+    J1939Scanner::new().run(bus)?.run();
 
     Err(anyhow!("Application should not stop running."))
 }
 struct J1939Scanner {
-    ui_table: Rc<RefCell<SimpleTable>>,
     layout: Layout,
     j1939_table: Rc<RefCell<J1939Table>>,
 }
@@ -56,11 +53,10 @@ impl J1939Scanner {
     fn new() -> J1939Scanner {
         let mut layout = Layout::new(800, 600);
         let j1939_table = Rc::new(RefCell::new(J1939Table::default()));
-        let ui_table = j1939da_ui::create_ui(j1939_table.clone(), &mut layout).unwrap();
+        j1939da_ui::create_ui(j1939_table.clone(), &mut layout);
         J1939Scanner {
             layout,
             j1939_table,
-            ui_table,
         }
     }
     fn run(&mut self, bus: MultiQueue<J1939Packet>) -> Result<App> {
@@ -98,7 +94,7 @@ impl J1939Scanner {
                 let grp = Group::default()
                     .with_label("J1939DA\t\t")
                     .layout_in(layout, 5);
-                j1939da_ui::create_ui(self.j1939_table.clone(), layout)?;
+                j1939da_ui::create_ui(self.j1939_table.clone(), layout);
                 grp.end();
             }
             {
