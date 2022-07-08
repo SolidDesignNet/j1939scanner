@@ -1,6 +1,4 @@
 use crate::layout::Layoutable;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 // yikes. Comment out the next line, then try to make sense of that error message!
@@ -47,12 +45,12 @@ pub fn main() -> Result<()> {
 }
 struct J1939Scanner {
     layout: Layout,
-    j1939_table: Rc<RefCell<J1939Table>>,
+    j1939_table: Arc<Mutex<J1939Table>>,
 }
 impl J1939Scanner {
     fn new() -> J1939Scanner {
         let mut layout = Layout::new(800, 600);
-        let j1939_table = Rc::new(RefCell::new(J1939Table::default()));
+        let j1939_table = Arc::new(Mutex::new(J1939Table::default()));
         j1939da_ui::create_ui(j1939_table.clone(), &mut layout);
         J1939Scanner {
             layout,
@@ -162,7 +160,7 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>, menu: &mut SysMenuBar) -> Re
     Ok(())
 }
 
-fn select_da_file(j1939_table: Rc<RefCell<J1939Table>>) -> Result<()> {
+fn select_da_file(j1939_table: Arc<Mutex<J1939Table>>) -> Result<()> {
     let mut chooser = dialog::FileDialog::new(dialog::FileDialogType::BrowseFile);
     chooser.set_filter("*.xlsx");
     chooser.set_title("Select J1939DA");
@@ -170,7 +168,8 @@ fn select_da_file(j1939_table: Rc<RefCell<J1939Table>>) -> Result<()> {
 
     if let Some(file) = chooser.filename().to_str() {
         j1939_table
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .file(file)
             .expect("Unable to load J1939DA");
     }
