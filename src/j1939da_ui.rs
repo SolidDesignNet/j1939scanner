@@ -1,5 +1,8 @@
 use simple_table::simple_table::{SimpleModel, SimpleTable};
 
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use fltk::frame::Frame;
@@ -19,7 +22,7 @@ pub struct J1939Table {
     pgn_dec: String,
     pgn_hex: String,
     description: Vec<String>,
-    simple_table: Option<SimpleTable>,
+    simple_table: Option<Arc<Mutex<SimpleTable>>>,
 }
 
 impl J1939Table {
@@ -90,8 +93,7 @@ impl J1939Table {
             }
         }
         println!("filtered.len {}", table.filtered.len());
-
-        table.simple_table.as_mut().unwrap().redraw();
+        table.redraw();
     }
     pub fn pgn_dec(&mut self, v: String) {
         self.pgn_dec = v;
@@ -108,9 +110,13 @@ impl J1939Table {
     pub fn description(&mut self, v: Vec<String>) {
         self.description = v;
     }
+    pub fn redraw(&mut self) {
+        let simple_table = self.simple_table.as_ref().unwrap().clone();
+        fltk::app::awake_callback(move || simple_table.lock().unwrap().redraw())
+    }
 }
 
-pub fn create_ui(rc_self: Arc<Mutex<J1939Table>>, layout: &mut Layout) {
+pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
     {
         let vbox = Pack::default().layout_in(layout, 5);
         let filter_box = Pack::default()
@@ -125,19 +131,19 @@ pub fn create_ui(rc_self: Arc<Mutex<J1939Table>>, layout: &mut Layout) {
             let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
             let rc = rc_self.clone();
             pgn_dec.set_callback(move |e| {
-                rc.lock().unwrap().pgn_dec(e.value());
+                (*rc).borrow_mut().pgn_dec(e.value());
             });
 
             let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
             let rc = rc_self.clone();
             pgn_hex.set_callback(move |e| {
-                rc.lock().unwrap().pgn_hex(e.value());
+                (*rc).borrow_mut().pgn_hex(e.value());
             });
             //filter description
             let mut description = Input::default().layout_top(&mut layout_pgn, 80);
             let rc = rc_self.clone();
             description.set_callback(move |e| {
-                rc.lock().unwrap().description(
+                (*rc).borrow_mut().description(
                     e.value()
                         .to_ascii_lowercase()
                         .split_ascii_whitespace()
@@ -159,61 +165,63 @@ pub fn create_ui(rc_self: Arc<Mutex<J1939Table>>, layout: &mut Layout) {
             let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_dec.set_callback(move |e| {
-                rc.lock().unwrap().spn_dec(e.value());
+                (*rc).borrow_mut().spn_dec(e.value());
             });
             let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_hex.set_callback(move |e| {
-                rc.lock().unwrap().spn_hex(e.value());
+                (*rc).borrow_mut().spn_hex(e.value());
             });
         }
         filter_box.end();
         let sw = Scroll::default().layout_in(layout, 0);
-        rc_self.lock().unwrap().simple_table = Some(SimpleTable::new(Box::new(J1939Model {
-            j1939_table: rc_self.clone(),
-            columns: vec![
-                J1939Column {
-                    name: "PGN".to_string(),
-                    width: 50,
-                    cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
-                },
-                J1939Column {
-                    name: "Label".to_string(),
-                    width: 200,
-                    cell: Box::new(move |row| row.pg_label.to_owned()),
-                },
-                J1939Column {
-                    name: "Acronym".to_string(),
-                    width: 50,
-                    cell: Box::new(move |row| row.pg_acronym.to_owned()),
-                },
-                J1939Column {
-                    name: "SPN".to_string(),
-                    width: 50,
-                    cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
-                },
-                J1939Column {
-                    name: "PGN".to_string(),
-                    width: 50,
-                    cell: Box::new(move |row| row.sp_description.to_owned()),
-                },
-            ],
-        })));
+        (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(SimpleTable::new(Box::new(
+            J1939Model {
+                j1939_table: rc_self.clone(),
+                columns: vec![
+                    J1939Column {
+                        name: "PGN".to_string(),
+                        width: 50,
+                        cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
+                    },
+                    J1939Column {
+                        name: "Label".to_string(),
+                        width: 200,
+                        cell: Box::new(move |row| row.pg_label.to_owned()),
+                    },
+                    J1939Column {
+                        name: "Acronym".to_string(),
+                        width: 50,
+                        cell: Box::new(move |row| row.pg_acronym.to_owned()),
+                    },
+                    J1939Column {
+                        name: "SPN".to_string(),
+                        width: 50,
+                        cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
+                    },
+                    J1939Column {
+                        name: "PGN".to_string(),
+                        width: 50,
+                        cell: Box::new(move |row| row.sp_description.to_owned()),
+                    },
+                ],
+            },
+        )))));
 
         sw.end();
         vbox.end();
     }
-    rc_self.lock().unwrap().refilter();
+    (*rc_self).borrow_mut().refilter();
 }
 
 pub struct J1939Model {
-    j1939_table: Arc<Mutex<J1939Table>>,
+    j1939_table: Rc<RefCell<J1939Table>>,
     columns: Vec<J1939Column>,
 }
 
 impl SimpleModel for J1939Model {
     fn row_count(&mut self) -> usize {
-        self.j1939_table.lock().unwrap().filtered_row_count()
+        self.j1939_table.borrow().filtered_row_count()
     }
 
     fn column_count(self: &mut J1939Model) -> usize {
@@ -229,9 +237,7 @@ impl SimpleModel for J1939Model {
     }
 
     fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
-        (self.columns[col as usize].cell)(
-            self.j1939_table.lock().unwrap().filtered_row(row as usize),
-        )
+        (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
     }
 }
 struct J1939Column {
