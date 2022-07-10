@@ -15,7 +15,6 @@ mod multiqueue;
 mod rp1210;
 mod rp1210_parsing;
 
-use fltk::menu::{MenuFlag, SysMenuBar};
 use fltk::{
     self,
     app::*,
@@ -23,12 +22,13 @@ use fltk::{
     dialog,
     enums::{FrameType, Shortcut},
     group::*,
+    menu::{MenuFlag, SysMenuBar},
     prelude::*,
     window::Window,
     *,
 };
 use j1939::packet::*;
-use j1939da_ui::J1939Table;
+use j1939da_ui::J1939DaData;
 use layout::Layout;
 use multiqueue::*;
 use rp1210::*;
@@ -41,25 +41,27 @@ pub fn main() -> Result<()> {
     //bus.log();
 
     // UI
-    J1939Scanner::new().run(bus)?.run()?;
+    J1939Scanner::new().run(bus)?;
 
     Err(anyhow!("Application should not stop running."))
 }
+
+// represents application
 struct J1939Scanner {
     layout: Layout,
-    j1939_table: Rc<RefCell<J1939Table>>,
+    j1939_table: Rc<RefCell<J1939DaData>>,
 }
 impl J1939Scanner {
     fn new() -> J1939Scanner {
         let mut layout = Layout::new(800, 600);
-        let j1939_table = Rc::new(RefCell::new(J1939Table::default()));
+        let j1939_table = Rc::new(RefCell::new(J1939DaData::default()));
         j1939da_ui::create_ui(j1939_table.clone(), &mut layout);
         J1939Scanner {
             layout,
             j1939_table,
         }
     }
-    fn run(&mut self, bus: MultiQueue<J1939Packet>) -> Result<App> {
+    fn run(&mut self, bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
         let application = App::default();
         let layout = &mut &mut self.layout;
         let mut window = Window::default()
@@ -78,7 +80,7 @@ impl J1939Scanner {
                     "Files/J1939DA...",
                     Shortcut::None,
                     MenuFlag::Normal,
-                    move |_m| select_da_file(j1939_table.clone()).unwrap(),
+                    move |_m| select_j1939da_file(j1939_table.clone()).unwrap(),
                 );
 
                 menu.add("RP1210", Shortcut::None, MenuFlag::Submenu, |_| {});
@@ -112,28 +114,32 @@ impl J1939Scanner {
         window.make_resizable(true);
         window.end();
         window.show();
-        Ok(application)
+        application.run()
     }
 }
-type Closer = Arc<Mutex<Option<std::boxed::Box<dyn Fn()>>>>;
+
+// to be executed when switching adapter options.
+type AdapterCloser = Arc<Mutex<Option<std::boxed::Box<dyn Fn()>>>>;
 
 fn create_rp1210_menu(bus: MultiQueue<J1939Packet>, menu: &mut SysMenuBar) -> Result<()> {
-    let closer: Closer = Arc::new(Mutex::new(None));
+    let closer: AdapterCloser = Arc::new(Mutex::new(None));
     // Add the close RP1210 option
-    let c1 = closer.clone();
-    menu.add(
-        "RP1210/Disconnect",
-        Shortcut::None,
-        MenuFlag::Normal,
-        move |_| {
-            let mut closer = c1.lock().unwrap();
-            // execute close if there is a prior rp1210 adapter
-            if let Some(adapter) = closer.as_ref() {
-                adapter()
-            }
-            *closer = None;
-        },
-    );
+    {
+        let closer = closer.clone();
+        menu.add(
+            "RP1210/Disconnect",
+            Shortcut::None,
+            MenuFlag::Normal,
+            move |_| {
+                let mut closer = closer.lock().unwrap();
+                // execute close if there is a prior rp1210 adapter
+                if let Some(adapter) = closer.as_ref() {
+                    adapter()
+                }
+                *closer = None;
+            },
+        );
+    }
 
     for product in rp1210_parsing::list_all_products()? {
         // Add all RP1210 J1939 devices
@@ -162,7 +168,7 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>, menu: &mut SysMenuBar) -> Re
     Ok(())
 }
 
-fn select_da_file(j1939_table: Rc<RefCell<J1939Table>>) -> Result<()> {
+fn select_j1939da_file(j1939_table: Rc<RefCell<J1939DaData>>) -> Result<()> {
     let mut chooser = dialog::FileDialog::new(dialog::FileDialogType::BrowseFile);
     chooser.set_filter("*.xlsx");
     chooser.set_title("Select J1939DA");

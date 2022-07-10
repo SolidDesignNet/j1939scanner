@@ -1,19 +1,22 @@
 use simple_table::simple_table::{SimpleModel, SimpleTable};
 
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
-use fltk::frame::Frame;
-use fltk::group::{Pack, PackType, Scroll};
-use fltk::input::Input;
-use fltk::prelude::{GroupExt, InputExt, WidgetExt};
+use fltk::{
+    frame::Frame,
+    group::{Pack, PackType, Scroll},
+    input::Input,
+    prelude::{GroupExt, InputExt, WidgetExt},
+};
 
-use crate::j1939::J1939DARow;
-use crate::{Layout, Layoutable};
+use crate::{j1939::J1939DARow, Layout, Layoutable};
 
 #[derive(Default)]
-pub struct J1939Table {
+pub struct J1939DaData {
     rows: Vec<J1939DARow>,
     filtered: Vec<usize>,
     spn_dec: String,
@@ -24,20 +27,24 @@ pub struct J1939Table {
     simple_table: Option<Arc<Mutex<SimpleTable>>>,
 }
 
-impl J1939Table {
+impl J1939DaData {
+    // load from XLS file
     pub fn file(&mut self, file: &str) -> anyhow::Result<()> {
         self.rows = crate::j1939::load_j1939da(file)?;
         self.refilter();
         Ok(())
     }
+    // how many rows after applying filters
     pub fn filtered_row_count(&self) -> usize {
         self.filtered.len()
     }
-    pub fn filtered_row(&self, row: usize) -> &J1939DARow {
-        &self.rows[self.filtered[row]]
+    // row by filtered index
+    pub fn filtered_row(&self, index: usize) -> &J1939DARow {
+        &self.rows[self.filtered[index]]
     }
-    pub fn refilter(&mut self) {
-        let table: &mut J1939Table = self;
+    // reapply filters
+    fn refilter(&mut self) {
+        let table: &mut J1939DaData = self;
         let pat = |c: char| !c.is_ascii_hexdigit();
 
         let spns: Vec<u32> = table
@@ -57,10 +64,6 @@ impl J1939Table {
             .map(|r| r.unwrap())
             .collect();
 
-        println!(
-            "refilter spns: {:?} pgns: {:?} desc: {:?}",
-            spns, pgns, table.description
-        );
         table.filtered.clear();
         for index in 0..table.rows.len() {
             let row = &table.rows[index];
@@ -91,7 +94,6 @@ impl J1939Table {
                 table.filtered.push(index);
             }
         }
-        println!("filtered.len {}", table.filtered.len());
         table.redraw();
     }
     fn pgn_dec(&mut self, v: String) {
@@ -114,13 +116,13 @@ impl J1939Table {
         self.description = v;
         self.refilter();
     }
-    pub fn redraw(&mut self) {
+    fn redraw(&mut self) {
         let simple_table = self.simple_table.as_ref().unwrap().clone();
         fltk::app::awake_callback(move || simple_table.lock().unwrap().redraw())
     }
 }
 
-pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
+pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
     {
         let vbox = Pack::default().layout_in(layout, 5);
         let filter_box = Pack::default()
@@ -166,13 +168,13 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
             let label = Frame::default().layout_top(layout, 60).with_label("SPN");
             let mut spn_layout = *layout;
             label.layout_right(&mut spn_layout, 60);
-            
+
             let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_dec.set_callback(move |e| {
                 (*rc).borrow_mut().spn_dec(e.value());
             });
-            
+
             let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_hex.set_callback(move |e| {
@@ -185,27 +187,27 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
             Box::new(J1939Model {
                 j1939_table: rc_self.clone(),
                 columns: vec![
-                    J1939Column {
+                    J1939DaColumn {
                         name: "PGN".to_string(),
                         width: 50,
                         cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
                     },
-                    J1939Column {
+                    J1939DaColumn {
                         name: "Label".to_string(),
                         width: 200,
                         cell: Box::new(move |row| row.pg_label.to_owned()),
                     },
-                    J1939Column {
+                    J1939DaColumn {
                         name: "Acronym".to_string(),
                         width: 50,
                         cell: Box::new(move |row| row.pg_acronym.to_owned()),
                     },
-                    J1939Column {
+                    J1939DaColumn {
                         name: "SPN".to_string(),
                         width: 50,
                         cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
                     },
-                    J1939Column {
+                    J1939DaColumn {
                         name: "PGN".to_string(),
                         width: 50,
                         cell: Box::new(move |row| row.sp_description.to_owned()),
@@ -220,9 +222,10 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
     (*rc_self).borrow_mut().refilter();
 }
 
+// simple_table J1939DaData model
 pub struct J1939Model {
-    j1939_table: Rc<RefCell<J1939Table>>,
-    columns: Vec<J1939Column>,
+    j1939_table: Rc<RefCell<J1939DaData>>,
+    columns: Vec<J1939DaColumn>,
 }
 
 impl SimpleModel for J1939Model {
@@ -246,7 +249,7 @@ impl SimpleModel for J1939Model {
         (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
     }
 }
-struct J1939Column {
+struct J1939DaColumn {
     name: String,
     width: u32,
     cell: Box<dyn Fn(&J1939DARow) -> Option<String> + Send>,
