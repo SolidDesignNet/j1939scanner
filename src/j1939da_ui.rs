@@ -1,6 +1,5 @@
 use simple_table::simple_table::{SimpleModel, SimpleTable};
 
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -38,7 +37,7 @@ impl J1939Table {
         &self.rows[self.filtered[row]]
     }
     pub fn refilter(&mut self) {
-        let table = self;
+        let table: &mut J1939Table = self;
         let pat = |c: char| !c.is_ascii_hexdigit();
 
         let spns: Vec<u32> = table
@@ -95,20 +94,25 @@ impl J1939Table {
         println!("filtered.len {}", table.filtered.len());
         table.redraw();
     }
-    pub fn pgn_dec(&mut self, v: String) {
+    fn pgn_dec(&mut self, v: String) {
         self.pgn_dec = v;
+        self.refilter();
     }
-    pub fn pgn_hex(&mut self, v: String) {
+    fn pgn_hex(&mut self, v: String) {
         self.pgn_hex = v;
+        self.refilter();
     }
-    pub fn spn_dec(&mut self, v: String) {
+    fn spn_dec(&mut self, v: String) {
         self.spn_dec = v;
+        self.refilter();
     }
-    pub fn spn_hex(&mut self, v: String) {
+    fn spn_hex(&mut self, v: String) {
         self.spn_hex = v;
+        self.refilter();
     }
-    pub fn description(&mut self, v: Vec<String>) {
+    fn description(&mut self, v: Vec<String>) {
         self.description = v;
+        self.refilter();
     }
     pub fn redraw(&mut self) {
         let simple_table = self.simple_table.as_ref().unwrap().clone();
@@ -162,11 +166,13 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
             let label = Frame::default().layout_top(layout, 60).with_label("SPN");
             let mut spn_layout = *layout;
             label.layout_right(&mut spn_layout, 60);
+            
             let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_dec.set_callback(move |e| {
                 (*rc).borrow_mut().spn_dec(e.value());
             });
+            
             let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
             let rc = rc_self.clone();
             spn_hex.set_callback(move |e| {
@@ -175,8 +181,8 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
         }
         filter_box.end();
         let sw = Scroll::default().layout_in(layout, 0);
-        (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(SimpleTable::new(Box::new(
-            J1939Model {
+        (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(SimpleTable::new(
+            Box::new(J1939Model {
                 j1939_table: rc_self.clone(),
                 columns: vec![
                     J1939Column {
@@ -205,8 +211,8 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939Table>>, layout: &mut Layout) {
                         cell: Box::new(move |row| row.sp_description.to_owned()),
                     },
                 ],
-            },
-        )))));
+            }),
+        ))));
 
         sw.end();
         vbox.end();

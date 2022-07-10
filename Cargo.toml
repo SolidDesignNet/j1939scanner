@@ -11,5 +11,5 @@ anyhow = "^1"
 libloading = "^0.7"
 rust-ini="^0.18"
 fltk = { version = "^1.1", features = ["fltk-bundled"] }
-simple_table = {path="../simple_table", version="^0.1"}
+simple_table = {git="https://github.com/SolidDesignNet/simple_table", branch="main"}
 

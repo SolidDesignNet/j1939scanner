@@ -41,7 +41,7 @@ pub fn main() -> Result<()> {
     //bus.log();
 
     // UI
-    J1939Scanner::new().run(bus)?.run();
+    J1939Scanner::new().run(bus)?.run()?;
 
     Err(anyhow!("Application should not stop running."))
 }
