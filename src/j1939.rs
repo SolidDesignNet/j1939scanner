@@ -104,14 +104,14 @@ pub fn load_j1939da(file: &str) -> Result<Vec<J1939DARow>> {
     let iter = RangeDeserializerBuilder::new()
         .has_headers(true)
         .from_range(&subrange)?;
-    let mut map = Vec::new();
+    let mut data = Vec::new();
     let mut errors = 0;
     let mut count = 0;
     for result in iter {
         count += 1;
         // ignore missing spns
         if result.is_ok() {
-            map.push(result?);
+            data.push(result?);
         } else {
             errors += 1;
             //println!("FAIL {}: {:?}", errors, result);
@@ -123,5 +123,5 @@ pub fn load_j1939da(file: &str) -> Result<Vec<J1939DARow>> {
         errors,
         count
     );
-    Ok(map)
+    Ok(data)
 }

@@ -41,81 +41,65 @@ pub fn main() -> Result<()> {
     //bus.log();
 
     // UI
-    J1939Scanner::new().run(bus)?;
+    run(bus)?;
 
     Err(anyhow!("Application should not stop running."))
 }
+fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
+    let application = App::default();
+    let j1939_data = Rc::new(RefCell::new(J1939DaData::default()));
 
-// represents application
-struct J1939Scanner {
-    layout: Layout,
-    j1939_table: Rc<RefCell<J1939DaData>>,
-}
-impl J1939Scanner {
-    fn new() -> J1939Scanner {
-        let mut layout = Layout::new(800, 600);
-        let j1939_table = Rc::new(RefCell::new(J1939DaData::default()));
-        j1939da_ui::create_ui(j1939_table.clone(), &mut layout);
-        J1939Scanner {
-            layout,
-            j1939_table,
-        }
-    }
-    fn run(&mut self, bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
-        let application = App::default();
-        let layout = &mut &mut self.layout;
-        let mut window = Window::default()
-            .with_label("J1939DA Tool - Solid Design")
-            .layout_in(layout, 5);
+    let mut layout = Layout::new(800, 600);
+    let layout = &mut layout;
+    let mut window = Window::default()
+        .with_label("J1939DA Tool - Solid Design")
+        .layout_in(layout, 5);
 
+    {
+        // window content
         {
-            // window content
-            {
-                // menu
-                let mut menu = menu::SysMenuBar::default().layout_top(layout, 20);
-                menu.set_frame(FrameType::FlatBox);
+            // menu
+            let mut menu = menu::SysMenuBar::default().layout_top(layout, 20);
+            menu.set_frame(FrameType::FlatBox);
 
-                let j1939_table = self.j1939_table.clone();
-                menu.add(
-                    "Files/J1939DA...",
-                    Shortcut::None,
-                    MenuFlag::Normal,
-                    move |_m| select_j1939da_file(j1939_table.clone()).unwrap(),
-                );
+            let j1939_table = j1939_data.clone();
+            menu.add(
+                "Files/J1939DA...",
+                Shortcut::None,
+                MenuFlag::Normal,
+                move |_m| select_j1939da_file(&mut j1939_table.borrow_mut()).unwrap(),
+            );
 
-                menu.add("RP1210", Shortcut::None, MenuFlag::Submenu, |_| {});
-                create_rp1210_menu(bus, &mut menu).unwrap(); // don't unwrap or it will fail on Linux
-                menu.end();
-            }
-
-            let tabs = Tabs::default().layout_in(layout, 5);
-
-            //self.layout.y += 25;
-
-            {
-                let grp = Group::default()
-                    .with_label("J1939DA\t\t")
-                    .layout_in(layout, 5);
-                j1939da_ui::create_ui(self.j1939_table.clone(), layout);
-                grp.end();
-            }
-            {
-                let grp = Group::default().with_label("CAN\t\t").layout_in(layout, 5);
-                let pack = Pack::default().layout_in(layout, 5);
-                Button::default()
-                    .with_label("CAN CAN")
-                    .layout_top(layout, 20);
-                //j1939da_ui::j1939da_log(&bus);
-                pack.end();
-                grp.end();
-            }
-            tabs.end();
+            menu.add("RP1210", Shortcut::None, MenuFlag::Submenu, |_| {});
+            create_rp1210_menu(bus.clone(), &mut menu).unwrap(); // don't unwrap or it will fail on Linux
+            menu.end();
         }
-        window.make_resizable(true);
-        window.end();
-        window.show();
-        application.run()
+
+        let tabs = Tabs::default().layout_in(layout, 5);
+        layout.y += 25;
+        {
+            let grp = Group::default()
+                .with_label("J1939DA\t\t")
+                .layout_in(layout, 5);
+            j1939da_ui::create_ui(j1939_data.clone(), layout);
+            grp.end();
+        }
+        {
+            let grp = Group::default().with_label("CAN\t\t").layout_in(layout, 5);
+            let pack = Pack::default().layout_in(layout, 5);
+            Button::default()
+                .with_label("CAN CAN")
+                .layout_top(layout, 20);
+            //j1939da_ui::j1939da_log(&bus);
+            pack.end();
+            grp.end();
+        }
+        tabs.end();
     }
+    window.make_resizable(true);
+    window.end();
+    window.show();
+    application.run()
 }
 
 // to be executed when switching adapter options.
@@ -168,17 +152,14 @@ fn create_rp1210_menu(bus: MultiQueue<J1939Packet>, menu: &mut SysMenuBar) -> Re
     Ok(())
 }
 
-fn select_j1939da_file(j1939_table: Rc<RefCell<J1939DaData>>) -> Result<()> {
+fn select_j1939da_file(j1939_table: &mut J1939DaData) -> Result<()> {
     let mut chooser = dialog::FileDialog::new(dialog::FileDialogType::BrowseFile);
     chooser.set_filter("*.xlsx");
     chooser.set_title("Select J1939DA");
     chooser.show();
 
     if let Some(file) = chooser.filename().to_str() {
-        j1939_table
-            .borrow_mut()
-            .file(file)
-            .expect("Unable to load J1939DA");
+        j1939_table.file(file).expect("Unable to load J1939DA");
     }
 
     Ok(())

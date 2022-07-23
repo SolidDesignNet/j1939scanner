@@ -8,9 +8,10 @@ use std::{
 
 use fltk::{
     frame::Frame,
-    group::{Pack, PackType, Scroll},
+    group::{Pack, PackType},
     input::Input,
     prelude::{GroupExt, InputExt, WidgetExt},
+    text::TextDisplay,
 };
 
 use crate::{j1939::J1939DARow, Layout, Layoutable};
@@ -123,114 +124,118 @@ impl J1939DaData {
 }
 
 pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
+    let mut vbox = Pack::default()
+        .with_type(PackType::Vertical)
+        .layout_in(layout, 15);
+
+    let filter_box = Pack::default()
+        .with_type(PackType::Horizontal)
+        .layout_top(layout, 32);
     {
-        let vbox = Pack::default().layout_in(layout, 5);
-        let filter_box = Pack::default()
-            .with_type(PackType::Horizontal)
-            .layout_top(layout, 32);
-        {
-            let mut layout_pgn = *layout;
-            // PGN filters
-            let label = Frame::default().layout_top(layout, 40).with_label("PGN");
-            label.layout_right(&mut layout_pgn, 60);
+        let mut layout_pgn = *layout;
+        // PGN filters
+        let label = Frame::default().layout_top(layout, 40).with_label("PGN");
+        label.layout_right(&mut layout_pgn, 60);
 
-            let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
-            let rc = rc_self.clone();
-            pgn_dec.set_callback(move |e| {
-                (*rc).borrow_mut().pgn_dec(e.value());
-            });
+        let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
+        let rc = rc_self.clone();
+        pgn_dec.set_callback(move |e| {
+            (*rc).borrow_mut().pgn_dec(e.value());
+        });
 
-            let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
-            let rc = rc_self.clone();
-            pgn_hex.set_callback(move |e| {
-                (*rc).borrow_mut().pgn_hex(e.value());
-            });
-            //filter description
-            let mut description = Input::default().layout_top(&mut layout_pgn, 80);
-            let rc = rc_self.clone();
-            description.set_callback(move |e| {
-                (*rc).borrow_mut().description(
-                    e.value()
-                        .to_ascii_lowercase()
-                        .split_ascii_whitespace()
-                        .map(|s| s.to_string())
-                        .collect(),
-                );
-            });
-        }
-        filter_box.end();
-        let filter_box = Pack::default()
-            .with_type(PackType::Horizontal)
-            .layout_top(layout, 32);
-        {
-            println!("SPN {:?}", layout);
-            // SPN filters
-            let label = Frame::default().layout_top(layout, 60).with_label("SPN");
-            let mut spn_layout = *layout;
-            label.layout_right(&mut spn_layout, 60);
-
-            let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
-            let rc = rc_self.clone();
-            spn_dec.set_callback(move |e| {
-                (*rc).borrow_mut().spn_dec(e.value());
-            });
-
-            let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
-            let rc = rc_self.clone();
-            spn_hex.set_callback(move |e| {
-                (*rc).borrow_mut().spn_hex(e.value());
-            });
-        }
-        filter_box.end();
-        let sw = Scroll::default().layout_in(layout, 0);
-        (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(SimpleTable::new(
-            Box::new(J1939Model {
-                j1939_table: rc_self.clone(),
-                columns: vec![
-                    J1939DaColumn {
-                        name: "PGN".to_string(),
-                        width: 50,
-                        cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
-                    },
-                    J1939DaColumn {
-                        name: "Label".to_string(),
-                        width: 200,
-                        cell: Box::new(move |row| row.pg_label.to_owned()),
-                    },
-                    J1939DaColumn {
-                        name: "Acronym".to_string(),
-                        width: 50,
-                        cell: Box::new(move |row| row.pg_acronym.to_owned()),
-                    },
-                    J1939DaColumn {
-                        name: "SPN".to_string(),
-                        width: 50,
-                        cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
-                    },
-                    J1939DaColumn {
-                        name: "PGN".to_string(),
-                        width: 50,
-                        cell: Box::new(move |row| row.sp_description.to_owned()),
-                    },
-                ],
-            }),
-        ))));
-
-        sw.end();
-        vbox.end();
+        let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
+        let rc = rc_self.clone();
+        pgn_hex.set_callback(move |e| {
+            (*rc).borrow_mut().pgn_hex(e.value());
+        });
+        //filter description
+        let mut description = Input::default().layout_top(&mut layout_pgn, 80);
+        let rc = rc_self.clone();
+        description.set_callback(move |e| {
+            (*rc).borrow_mut().description(
+                e.value()
+                    .to_ascii_lowercase()
+                    .split_ascii_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
+            );
+        });
     }
+    filter_box.end();
+    let filter_box = Pack::default()
+        .with_type(PackType::Horizontal)
+        .layout_top(layout, 32);
+    {
+        // SPN filters
+        let label = Frame::default().layout_top(layout, 60).with_label("SPN");
+        let mut spn_layout = *layout;
+        label.layout_right(&mut spn_layout, 60);
+
+        let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
+        let rc = rc_self.clone();
+        spn_dec.set_callback(move |e| {
+            (*rc).borrow_mut().spn_dec(e.value());
+        });
+
+        let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
+        let rc = rc_self.clone();
+        spn_hex.set_callback(move |e| {
+            (*rc).borrow_mut().spn_hex(e.value());
+        });
+    }
+    filter_box.end();
+
+    let simple_table = SimpleTable::new(Box::new(J1939Model {
+        j1939da_data: rc_self.clone(),
+        columns: vec![
+            J1939DaColumn {
+                name: "PGN".to_string(),
+                width: 50,
+                cell: Box::new(move |row| row.pg.map(|p| format!("{:04X}", p))),
+            },
+            J1939DaColumn {
+                name: "Label".to_string(),
+                width: 200,
+                cell: Box::new(move |row| row.pg_label.to_owned()),
+            },
+            J1939DaColumn {
+                name: "Acronym".to_string(),
+                width: 50,
+                cell: Box::new(move |row| row.pg_acronym.to_owned()),
+            },
+            J1939DaColumn {
+                name: "SPN".to_string(),
+                width: 50,
+                cell: Box::new(move |row| row.spn.map(|p| format!("{:04X}", p))),
+            },
+            J1939DaColumn {
+                name: "Description".to_string(),
+                width: 200,
+                cell: Box::new(move |row| row.sp_description.to_owned()),
+            },
+            J1939DaColumn {
+                name: "Unit".to_string(),
+                width: 50,
+                cell: Box::new(move |row| row.unit.to_owned()),
+            },
+        ],
+    }));
+    vbox.add_resizable(&simple_table.table);
+    (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(simple_table)));
+    vbox.end();
+
     (*rc_self).borrow_mut().refilter();
 }
 
 // simple_table J1939DaData model
 pub struct J1939Model {
-    j1939_table: Rc<RefCell<J1939DaData>>,
+    j1939da_data: Rc<RefCell<J1939DaData>>,
     columns: Vec<J1939DaColumn>,
 }
 
 impl SimpleModel for J1939Model {
     fn row_count(&mut self) -> usize {
-        self.j1939_table.borrow().filtered_row_count()
+        self.j1939da_data.borrow().filtered_row_count()
     }
 
     fn column_count(self: &mut J1939Model) -> usize {
@@ -246,7 +251,7 @@ impl SimpleModel for J1939Model {
     }
 
     fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
-        (self.columns[col as usize].cell)(self.j1939_table.borrow().filtered_row(row as usize))
+        (self.columns[col as usize].cell)(self.j1939da_data.borrow().filtered_row(row as usize))
     }
 }
 struct J1939DaColumn {

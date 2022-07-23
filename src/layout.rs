@@ -1,3 +1,11 @@
+/*
+
+Tool to simplify laying out FLTK.
+
+Experimental.
+
+*/
+
 #[derive(Debug, Copy, Clone)]
 pub struct Layout {
     pub x: i32,
@@ -39,6 +47,7 @@ where
         self
     }
 }
+
 impl Layout {
     pub fn new(width: i32, height: i32) -> Layout {
         Layout {
