@@ -11,7 +11,6 @@ use fltk::{
     group::{Pack, PackType},
     input::Input,
     prelude::{GroupExt, InputExt, WidgetExt},
-    text::TextDisplay,
 };
 
 use crate::{j1939::J1939DARow, Layout, Layoutable};
@@ -126,7 +125,7 @@ impl J1939DaData {
 pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
     let mut vbox = Pack::default()
         .with_type(PackType::Vertical)
-        .layout_in(layout, 15);
+        .layout_in(layout);
 
     let filter_box = Pack::default()
         .with_type(PackType::Horizontal)

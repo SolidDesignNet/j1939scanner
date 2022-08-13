@@ -14,7 +14,7 @@ pub struct Layout {
     pub height: i32,
 }
 pub trait Layoutable {
-    fn layout_in(self, layout: &mut Layout, margin: i32) -> Self;
+    fn layout_in(self, layout: &mut Layout) -> Self;
     fn layout_top(self, layout: &mut Layout, size: i32) -> Self;
     fn layout_right(self, layout: &mut Layout, size: i32) -> Self;
 }
@@ -23,11 +23,7 @@ where
     T: fltk::prelude::WidgetExt,
     T: Sized,
 {
-    fn layout_in(mut self, layout: &mut Layout, margin: i32) -> T {
-        layout.x += margin;
-        layout.y += margin;
-        layout.width -= 2 * margin;
-        layout.height -= 2 * margin;
+    fn layout_in(mut self, layout: &mut Layout) -> T {
         self.set_pos(layout.x, layout.y);
         self.set_size(layout.width, layout.height);
         self

@@ -53,7 +53,7 @@ fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
     let layout = &mut layout;
     let mut window = Window::default()
         .with_label("J1939DA Tool - Solid Design")
-        .layout_in(layout, 5);
+        .layout_in(layout);
 
     {
         // window content
@@ -75,18 +75,18 @@ fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
             menu.end();
         }
 
-        let tabs = Tabs::default().layout_in(layout, 5);
+        let tabs = Tabs::default().layout_in(layout);
         layout.y += 25;
         {
             let grp = Group::default()
                 .with_label("J1939DA\t\t")
-                .layout_in(layout, 5);
+                .layout_in(layout);
             j1939da_ui::create_ui(j1939_data.clone(), layout);
             grp.end();
         }
         {
-            let grp = Group::default().with_label("CAN\t\t").layout_in(layout, 5);
-            let pack = Pack::default().layout_in(layout, 5);
+            let grp = Group::default().with_label("CAN\t\t").layout_in(layout);
+            let pack = Pack::default().layout_in(layout);
             Button::default()
                 .with_label("CAN CAN")
                 .layout_top(layout, 20);
