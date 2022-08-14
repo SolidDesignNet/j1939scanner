@@ -1,6 +1,5 @@
 use crate::layout::Layoutable;
-use std::cell::RefCell;
-use std::rc::Rc;
+
 use std::sync::{Arc, Mutex};
 
 // yikes. Comment out the next line, then try to make sense of that error message!
@@ -47,7 +46,7 @@ pub fn main() -> Result<()> {
 }
 fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
     let application = App::default();
-    let j1939_data = Rc::new(RefCell::new(J1939DaData::default()));
+    let j1939_data = Arc::new(Mutex::new(J1939DaData::default()));
 
     let mut layout = Layout::new(800, 600);
     let layout = &mut layout;
@@ -67,7 +66,7 @@ fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
                 "Files/J1939DA...",
                 Shortcut::None,
                 MenuFlag::Normal,
-                move |_m| select_j1939da_file(&mut j1939_table.borrow_mut()).unwrap(),
+                move |_m| select_j1939da_file(&mut j1939_table.lock().unwrap()).unwrap(),
             );
 
             menu.add("RP1210", Shortcut::None, MenuFlag::Submenu, |_| {});
@@ -78,9 +77,7 @@ fn run(bus: MultiQueue<J1939Packet>) -> Result<(), FltkError> {
         let tabs = Tabs::default().layout_in(layout);
         layout.y += 25;
         {
-            let grp = Group::default()
-                .with_label("J1939DA\t\t")
-                .layout_in(layout);
+            let grp = Group::default().with_label("J1939DA\t\t").layout_in(layout);
             j1939da_ui::create_ui(j1939_data.clone(), layout);
             grp.end();
         }

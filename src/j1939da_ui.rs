@@ -1,10 +1,6 @@
 use simple_table::simple_table::{SimpleModel, SimpleTable};
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use fltk::{
     frame::Frame,
@@ -122,7 +118,7 @@ impl J1939DaData {
     }
 }
 
-pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
+pub fn create_ui(rc_self: Arc<Mutex<J1939DaData>>, layout: &mut Layout) {
     let mut vbox = Pack::default()
         .with_type(PackType::Vertical)
         .layout_in(layout);
@@ -139,19 +135,19 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
         let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
         let rc = rc_self.clone();
         pgn_dec.set_callback(move |e| {
-            (*rc).borrow_mut().pgn_dec(e.value());
+            (*rc).lock().unwrap().pgn_dec(e.value());
         });
 
         let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
         let rc = rc_self.clone();
         pgn_hex.set_callback(move |e| {
-            (*rc).borrow_mut().pgn_hex(e.value());
+            (*rc).lock().unwrap().pgn_hex(e.value());
         });
         //filter description
         let mut description = Input::default().layout_top(&mut layout_pgn, 80);
         let rc = rc_self.clone();
         description.set_callback(move |e| {
-            (*rc).borrow_mut().description(
+            (*rc).lock().unwrap().description(
                 e.value()
                     .to_ascii_lowercase()
                     .split_ascii_whitespace()
@@ -173,13 +169,13 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
         let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
         let rc = rc_self.clone();
         spn_dec.set_callback(move |e| {
-            (*rc).borrow_mut().spn_dec(e.value());
+            (*rc).lock().unwrap().spn_dec(e.value());
         });
 
         let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
         let rc = rc_self.clone();
         spn_hex.set_callback(move |e| {
-            (*rc).borrow_mut().spn_hex(e.value());
+            (*rc).lock().unwrap().spn_hex(e.value());
         });
     }
     filter_box.end();
@@ -220,21 +216,21 @@ pub fn create_ui(rc_self: Rc<RefCell<J1939DaData>>, layout: &mut Layout) {
         ],
     }));
     vbox.add_resizable(&simple_table.table);
-    (*rc_self).borrow_mut().simple_table = Some(Arc::new(Mutex::new(simple_table)));
+    (*rc_self).lock().unwrap().simple_table = Some(Arc::new(Mutex::new(simple_table)));
     vbox.end();
 
-    (*rc_self).borrow_mut().refilter();
+    (*rc_self).lock().unwrap().refilter();
 }
 
 // simple_table J1939DaData model
 pub struct J1939Model {
-    j1939da_data: Rc<RefCell<J1939DaData>>,
+    j1939da_data: Arc<Mutex<J1939DaData>>,
     columns: Vec<J1939DaColumn>,
 }
 
 impl SimpleModel for J1939Model {
     fn row_count(&mut self) -> usize {
-        self.j1939da_data.borrow().filtered_row_count()
+        self.j1939da_data.lock().unwrap().filtered_row_count()
     }
 
     fn column_count(self: &mut J1939Model) -> usize {
@@ -250,7 +246,7 @@ impl SimpleModel for J1939Model {
     }
 
     fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
-        (self.columns[col as usize].cell)(self.j1939da_data.borrow().filtered_row(row as usize))
+        (self.columns[col as usize].cell)(self.j1939da_data.lock().unwrap().filtered_row(row as usize))
     }
 }
 struct J1939DaColumn {
