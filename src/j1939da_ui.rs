@@ -15,10 +15,10 @@ use crate::{j1939::J1939DARow, Layout, Layoutable};
 pub struct J1939DaData {
     rows: Vec<J1939DARow>,
     filtered: Vec<usize>,
-    spn_dec: String,
-    spn_hex: String,
-    pgn_dec: String,
-    pgn_hex: String,
+    spn_dec: Vec<u32>,
+    spn_hex: Vec<u32>,
+    pgn_dec: Vec<u32>,
+    pgn_hex: Vec<u32>,
     description: Vec<String>,
     simple_table: Option<Arc<Mutex<SimpleTable>>>,
 }
@@ -41,24 +41,22 @@ impl J1939DaData {
     // reapply filters
     fn refilter(&mut self) {
         let table: &mut J1939DaData = self;
-        let pat = |c: char| !c.is_ascii_hexdigit();
 
         let spns: Vec<u32> = table
             .spn_dec
-            .split(pat)
-            .map(|s| s.parse())
-            .chain(table.spn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
-            .filter(|r| r.is_ok())
-            .map(|r| r.unwrap())
+            .iter()
+            .chain(table.spn_hex.iter())
+            .map(|s| *s)
             .collect();
         let pgns: Vec<u32> = table
             .pgn_dec
-            .split(pat)
-            .map(|s| s.parse())
-            .chain(table.pgn_hex.split(pat).map(|s| u32::from_str_radix(s, 16)))
-            .filter(|r| r.is_ok())
-            .map(|r| r.unwrap())
+            .iter()
+            .chain(table.pgn_hex.iter())
+            .map(|s| *s)
             .collect();
+
+        println!("spns:{:?}", spns);
+        println!("pgns:{:?}", pgns);
 
         table.filtered.clear();
         for index in 0..table.rows.len() {
@@ -92,22 +90,6 @@ impl J1939DaData {
         }
         table.redraw();
     }
-    fn pgn_dec(&mut self, v: String) {
-        self.pgn_dec = v;
-        self.refilter();
-    }
-    fn pgn_hex(&mut self, v: String) {
-        self.pgn_hex = v;
-        self.refilter();
-    }
-    fn spn_dec(&mut self, v: String) {
-        self.spn_dec = v;
-        self.refilter();
-    }
-    fn spn_hex(&mut self, v: String) {
-        self.spn_hex = v;
-        self.refilter();
-    }
     fn description(&mut self, v: Vec<String>) {
         self.description = v;
         self.refilter();
@@ -116,6 +98,23 @@ impl J1939DaData {
         let simple_table = self.simple_table.as_ref().unwrap().clone();
         fltk::app::awake_callback(move || simple_table.lock().unwrap().redraw())
     }
+}
+
+fn parse_dec(v: String) -> Vec<u32> {
+    let pat = |c: char| !c.is_ascii_hexdigit();
+    v.split(pat)
+        .map(|s| s.parse())
+        .filter(|s| s.is_ok())
+        .map(|s| s.unwrap())
+        .collect()
+}
+fn parse_hex(v: String) -> Vec<u32> {
+    let pat = |c: char| !c.is_ascii_hexdigit();
+    v.split(pat)
+        .map(|s| u32::from_str_radix(s, 16))
+        .filter(|s| s.is_ok())
+        .map(|s| s.unwrap())
+        .collect()
 }
 
 pub fn create_ui(rc_self: Arc<Mutex<J1939DaData>>, layout: &mut Layout) {
@@ -135,13 +134,23 @@ pub fn create_ui(rc_self: Arc<Mutex<J1939DaData>>, layout: &mut Layout) {
         let mut pgn_dec = Input::default().layout_right(&mut layout_pgn, 80);
         let rc = rc_self.clone();
         pgn_dec.set_callback(move |e| {
-            (*rc).lock().unwrap().pgn_dec(e.value());
+            let ref mut this = (*rc).lock().unwrap();
+            this.pgn_dec = parse_dec(e.value());
+            if this.pgn_dec.is_empty() {
+                e.set_value("decimal");
+            }
+            this.refilter();
         });
 
         let mut pgn_hex = Input::default().layout_right(&mut layout_pgn, 80);
         let rc = rc_self.clone();
         pgn_hex.set_callback(move |e| {
-            (*rc).lock().unwrap().pgn_hex(e.value());
+            let ref mut this = (*rc).lock().unwrap();
+            this.pgn_hex = parse_hex(e.value());
+            if this.pgn_dec.is_empty() {
+                e.set_value("hex");
+            }
+            this.refilter();
         });
         //filter description
         let mut description = Input::default().layout_top(&mut layout_pgn, 80);
@@ -155,6 +164,8 @@ pub fn create_ui(rc_self: Arc<Mutex<J1939DaData>>, layout: &mut Layout) {
                     .collect(),
             );
         });
+        pgn_dec.set_value("decimal");
+        pgn_hex.set_value("hex");
     }
     filter_box.end();
     let filter_box = Pack::default()
@@ -169,14 +180,26 @@ pub fn create_ui(rc_self: Arc<Mutex<J1939DaData>>, layout: &mut Layout) {
         let mut spn_dec = Input::default().layout_right(&mut spn_layout, 80);
         let rc = rc_self.clone();
         spn_dec.set_callback(move |e| {
-            (*rc).lock().unwrap().spn_dec(e.value());
+            let ref mut this = (*rc).lock().unwrap();
+            this.spn_dec = parse_dec(e.value());
+            if this.spn_dec.is_empty() {
+                e.set_value("decimal");
+            }
+            this.refilter();
         });
 
         let mut spn_hex = Input::default().layout_right(&mut spn_layout, 80);
         let rc = rc_self.clone();
         spn_hex.set_callback(move |e| {
-            (*rc).lock().unwrap().spn_hex(e.value());
+            let ref mut this = (*rc).lock().unwrap();
+            this.spn_hex = parse_hex(e.value());
+            if this.spn_dec.is_empty() {
+                e.set_value("hex");
+            }
+            this.refilter();
         });
+        spn_dec.set_value("decimal");
+        spn_hex.set_value("hex");
     }
     filter_box.end();
 
@@ -246,7 +269,9 @@ impl SimpleModel for J1939Model {
     }
 
     fn cell(self: &mut J1939Model, row: i32, col: i32) -> Option<String> {
-        (self.columns[col as usize].cell)(self.j1939da_data.lock().unwrap().filtered_row(row as usize))
+        (self.columns[col as usize].cell)(
+            self.j1939da_data.lock().unwrap().filtered_row(row as usize),
+        )
     }
 }
 struct J1939DaColumn {
