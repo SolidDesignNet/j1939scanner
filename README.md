@@ -1,5 +1,5 @@
 # Status
-This tool is being replaced by j1939logger.  GTK was too difficult to deal with.
+This tool is being replaced by [j1939logger](https://github.com/SolidDesignNet/j1939logger).  GTK was too difficult to deal with.
 
 # j1939scanner
 
