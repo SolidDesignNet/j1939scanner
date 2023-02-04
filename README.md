@@ -1,3 +1,6 @@
+# Status
+This tool is being replaced by j1939logger.  GTK was too difficult to deal with.
+
 # j1939scanner
 
 This tool is a simple J1939 scan tool.  J1939DA is not embedded.  You should purchase a copy of J1939DA_MAR2021.xlsx from SAE.
